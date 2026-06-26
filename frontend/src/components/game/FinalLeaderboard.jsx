@@ -1,9 +1,11 @@
 import { motion } from "framer-motion";
-import { Trophy, Home, RotateCcw } from "lucide-react";
+import { Trophy, Home, RotateCcw, Download } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { generateShareCard } from "@/lib/shareCard";
+import { haptic } from "@/lib/haptic";
 
 const podiumColors = ["var(--c-yellow)", "var(--c-lavender)", "var(--c-peach)"];
 const podiumLabels = ["1st", "2nd", "3rd"];
@@ -31,6 +33,25 @@ export default function FinalLeaderboard({ state, me, isHost }) {
       toast.error(err.response?.data?.detail || "Couldn't start rematch");
     } finally {
       setRematching(false);
+    }
+  };
+
+  const downloadCard = async () => {
+    haptic("light");
+    try {
+      const blob = await generateShareCard(state, state.code);
+      if (!blob) throw new Error("Could not generate image");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `quiz-${state.code}-results.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      toast.success("Card downloaded! Share it 📲");
+    } catch (err) {
+      toast.error("Couldn't generate card");
     }
   };
 
@@ -107,7 +128,14 @@ export default function FinalLeaderboard({ state, me, isHost }) {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12">
+      <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12 flex-wrap">
+        <button
+          data-testid="download-card-btn"
+          onClick={downloadCard}
+          className="nb-btn px-6 py-4 bg-[var(--c-lavender)] inline-flex items-center justify-center gap-2"
+        >
+          <Download strokeWidth={3} /> Download Share Card
+        </button>
         {isHost ? (
           <button
             data-testid="play-again-btn"

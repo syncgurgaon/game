@@ -1,0 +1,163 @@
+// Generates a 1080x1350 PNG share card of the final leaderboard
+// Returns a Promise<Blob>
+export async function generateShareCard(state, code) {
+  const W = 1080;
+  const H = 1350;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  // Bg
+  ctx.fillStyle = "#F4F0EA";
+  ctx.fillRect(0, 0, W, H);
+
+  // dot pattern
+  ctx.fillStyle = "rgba(26,26,26,0.08)";
+  for (let y = 18; y < H; y += 28) {
+    for (let x = 18; x < W; x += 28) {
+      ctx.beginPath();
+      ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Header chip
+  drawChip(ctx, 60, 70, "GUESS THE LIL' ONE", "#FFE873");
+
+  // Big title
+  ctx.fillStyle = "#1A1A1A";
+  ctx.font = "900 110px 'Cabinet Grotesk', Nunito, sans-serif";
+  ctx.fillText("FINAL RESULTS", 60, 240);
+
+  // Room code chip
+  drawChip(ctx, 60, 270, `ROOM ${code}`, "#7BF1A8", 24);
+
+  const sorted = [...state.players].sort((a, b) => b.score - a.score);
+  const winner = sorted[0];
+
+  // Winner banner
+  ctx.fillStyle = "#FF8A5B";
+  drawNbBox(ctx, 60, 360, W - 120, 200);
+  ctx.fillStyle = "#1A1A1A";
+  ctx.font = "900 56px 'Cabinet Grotesk', Nunito, sans-serif";
+  ctx.fillText("🏆 WINNER", 90, 430);
+  ctx.font = "900 92px 'Cabinet Grotesk', Nunito, sans-serif";
+  ctx.fillText(truncate(ctx, winner?.name || "?", W - 180), 90, 520);
+
+  // Try to draw winner's photo (top right of banner)
+  if (winner?.photo) {
+    try {
+      const img = await loadImage(winner.photo);
+      // round square
+      ctx.save();
+      const px = W - 60 - 160;
+      const py = 380;
+      const ps = 160;
+      ctx.beginPath();
+      roundRect(ctx, px, py, ps, ps, 18);
+      ctx.clip();
+      ctx.drawImage(img, px, py, ps, ps);
+      ctx.restore();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = "#1A1A1A";
+      ctx.beginPath();
+      roundRect(ctx, px, py, ps, ps, 18);
+      ctx.stroke();
+    } catch {
+      /* skip if cannot load */
+    }
+  }
+
+  // Rankings
+  ctx.fillStyle = "#1A1A1A";
+  ctx.font = "900 48px 'Cabinet Grotesk', Nunito, sans-serif";
+  ctx.fillText("RANKINGS", 60, 660);
+
+  const rowH = 88;
+  const rowColors = ["#FFE873", "#B4A2FE", "#FF8A5B", "#FFFDF9", "#FFFDF9", "#FFFDF9", "#FFFDF9", "#FFFDF9"];
+  sorted.slice(0, 8).forEach((p, i) => {
+    const y = 700 + i * (rowH + 14);
+    ctx.fillStyle = rowColors[i];
+    drawNbBox(ctx, 60, y, W - 120, rowH);
+    ctx.fillStyle = "#1A1A1A";
+    ctx.font = "900 44px 'Cabinet Grotesk', Nunito, sans-serif";
+    ctx.fillText(`${i + 1}.`, 90, y + 58);
+    ctx.font = "800 40px Nunito, sans-serif";
+    ctx.fillText(truncate(ctx, p.name, W - 360), 170, y + 58);
+    ctx.font = "900 44px 'Cabinet Grotesk', Nunito, sans-serif";
+    const scoreText = `${p.score}`;
+    const w = ctx.measureText(scoreText).width;
+    ctx.fillText(scoreText, W - 90 - w, y + 58);
+  });
+
+  // Footer
+  ctx.fillStyle = "#1A1A1A";
+  ctx.font = "700 22px Nunito, sans-serif";
+  ctx.fillText("Play with your crew at this room link", 60, H - 60);
+
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/png", 0.92));
+}
+
+function drawChip(ctx, x, y, text, bg, fontSize = 28) {
+  ctx.font = `900 ${fontSize}px 'Cabinet Grotesk', Nunito, sans-serif`;
+  const padX = 18;
+  const padY = 10;
+  const w = ctx.measureText(text).width + padX * 2;
+  const h = fontSize + padY * 2;
+  ctx.fillStyle = bg;
+  drawNbBox(ctx, x, y, w, h);
+  ctx.fillStyle = "#1A1A1A";
+  ctx.fillText(text, x + padX, y + fontSize + padY - 4);
+}
+
+function drawNbBox(ctx, x, y, w, h, r = 14) {
+  ctx.save();
+  // shadow
+  ctx.fillStyle = "#1A1A1A";
+  roundRect(ctx, x + 6, y + 6, w, h, r);
+  ctx.fill();
+  // body — caller has set fillStyle for body before; preserve it via ctx state
+  ctx.restore();
+  // re-fill body in caller's color (caller pre-set fillStyle)
+  const prev = ctx.fillStyle;
+  ctx.fillStyle = prev;
+  roundRect(ctx, x, y, w, h, r);
+  ctx.fill();
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = "#1A1A1A";
+  ctx.stroke();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function truncate(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + "…").width > maxWidth) {
+    t = t.slice(0, -1);
+  }
+  return t + "…";
+}

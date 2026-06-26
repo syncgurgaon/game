@@ -446,6 +446,29 @@ async def list_games(limit: int = 30):
     docs = await db.games.find({}, {"_id": 0}).sort("finished_at", -1).to_list(min(limit, 100))
     return {"games": docs}
 
+@api_router.get("/stats/players")
+async def player_stats(limit: int = 20):
+    pipeline = [
+        {"$unwind": {"path": "$results", "includeArrayIndex": "rank"}},
+        {"$group": {
+            "_id": {"$toLower": "$results.name"},
+            "name": {"$last": "$results.name"},
+            "games_played": {"$sum": 1},
+            "wins": {"$sum": {"$cond": [{"$eq": ["$rank", 0]}, 1, 0]}},
+            "total_score": {"$sum": "$results.score"},
+            "best_score": {"$max": "$results.score"},
+        }},
+        {"$addFields": {
+            "avg_score": {"$cond": [{"$gt": ["$games_played", 0]}, {"$divide": ["$total_score", "$games_played"]}, 0]},
+            "win_rate": {"$cond": [{"$gt": ["$games_played", 0]}, {"$divide": ["$wins", "$games_played"]}, 0]},
+        }},
+        {"$project": {"_id": 0}},
+        {"$sort": {"wins": -1, "avg_score": -1}},
+        {"$limit": min(max(limit, 1), 100)},
+    ]
+    docs = await db.games.aggregate(pipeline).to_list(100)
+    return {"players": docs}
+
 async def _advance_after_result(code: str, round_num: int):
     await asyncio.sleep(5)
     async with rooms_lock:

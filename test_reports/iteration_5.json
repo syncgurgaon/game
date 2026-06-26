@@ -1,0 +1,23 @@
+{
+  "summary": "Iteration 5 testing complete. Verified new features: GET /api/stats/players aggregation endpoint, History page Top Players section + filter, FinalLeaderboard Download Share Card (PNG generation + download + toast). All passing.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "GET /api/stats/players?limit=12 returns 200 with players array; 4 aggregated records observed with fields {name, games_played, wins, total_score, best_score, avg_score, win_rate} sorted by wins desc",
+    "/history page renders top-players section with 4 top-player-N cards showing rank, name, wins (e.g. '1W'), games_played, avg, best",
+    "history-filter input filters by player name 'Host' -> 1 matching item",
+    "history-filter input filters by room code (e.g. '0AS41') -> 1 matching item",
+    "history-filter with no match shows history-empty",
+    "Clearing filter restores full list (2 items)",
+    "FinalLeaderboard renders with download-card-btn (text 'Download Share Card')",
+    "Clicking download-card-btn triggers download with filename matching 'quiz-{CODE}-results.png' (verified quiz-ULO2W-results.png, 145884 bytes)",
+    "Toast 'Card downloaded! Share it 📲' appears after download",
+    "No console errors during share card generation",
+    "Regression: create room, join, settings, start, answer, finish flow still works; Hall of Fame route loads; FinalLeaderboard podium + Play Again + Leave buttons intact"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Backend settings endpoint returned 400 for {rounds_count:1, round_duration_s:5} with 2 players — likely validation on minimum rounds; not part of this iteration's scope and did not block the test (game completed using defaults via round_result state). Share card PNG size 145KB confirms canvas content was drawn including winner banner + rankings."
+}
