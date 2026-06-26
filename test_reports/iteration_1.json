@@ -1,0 +1,26 @@
+{
+  "summary": "Smoke tested backend REST endpoints (create/get/join/start/answer + validation) and frontend primary flow (Home -> Create form -> Photo upload -> Lobby). All checks passed. WebSocket endpoint not directly exercised in this iteration but lobby state hydration via REST works and Quiz/RoundResult/FinalLeaderboard screens were not exercised (require 2-player WS multi-context flow, deferred to full testing).",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "GET /api/ returns 200 with API message",
+    "POST /api/rooms creates room, returns 5-char code, player_id, is_host=true",
+    "GET /api/rooms/{code} returns lobby state with players list (incl. photo) and host_id",
+    "POST /api/rooms/{code}/start rejects with 400 when <2 players",
+    "POST /api/rooms/{code}/join works for 2nd player; rejects duplicate name with 400",
+    "POST /api/rooms/{code}/start rejects non-host with 403",
+    "POST /api/rooms/{code}/start succeeds for host with 2 players; status transitions to 'playing' with question + 4 options, correct_id hidden",
+    "POST /api/rooms/{code}/answer returns {correct, points} (correct=false yielded 0 points as expected for wrong choice)",
+    "POST /api/rooms/{code}/join after game start rejected with 400 ('Game already started')",
+    "FRONTEND: Home page loads with create-room-btn and join-room-btn",
+    "FRONTEND: Create form shows player-name-input, photo-upload-trigger, submit-create-btn",
+    "FRONTEND: Photo upload (file input) produces photo-upload-preview",
+    "FRONTEND: Submit creates room, navigates to /room/{code}, Lobby renders with room-code-display, share-link, copy-link-btn, start-game-btn (disabled with 1 player), player-card-* (1 card)"
+  ],
+  "failed": [],
+  "action_items": [
+    "Full testing should cover: WebSocket broadcasts on join/start/answer, real-time lobby update for 2nd browser, full game progression (Quiz -> RoundResult -> FinalLeaderboard) with 2 players, scoring with correct answers (>0 points), 15s timer auto-advance, 5s round_result auto-advance, sessionStorage rejoin"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}
