@@ -13,7 +13,7 @@ export function haptic(kind = "light") {
       tick: 8,
     };
     navigator.vibrate(patterns[kind] ?? 12);
-  } catch {
-    /* noop */
+  } catch (err) {
+    console.warn("haptic vibrate failed", err);
   }
 }

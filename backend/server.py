@@ -6,6 +6,7 @@ import os
 import logging
 import asyncio
 import random
+import secrets
 import string
 import uuid
 from pathlib import Path
@@ -105,7 +106,9 @@ manager = ConnectionManager()
 # ============ Helpers ============
 
 def gen_code(length: int = 5) -> str:
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+    # Cryptographically secure room codes (avoids guessable sequences)
+    alphabet = string.ascii_uppercase + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 DUMMY_NAMES = [
     "Alex Rivera", "Sam Patel", "Jordan Lee", "Riley Kim",

@@ -66,9 +66,9 @@ export function AudioProvider({ children }) {
     try {
       a.currentTime = 0;
       const p = a.play();
-      if (p && p.catch) p.catch(() => {});
-    } catch {
-      /* noop */
+      if (p && p.catch) p.catch((err) => console.warn("sfx play failed", kind, err));
+    } catch (err) {
+      console.warn("sfx error", kind, err);
     }
   }, []);
 

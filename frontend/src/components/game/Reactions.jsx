@@ -14,8 +14,8 @@ export default function ReactionBar({ code, me }) {
     haptic("light");
     try {
       await api.post(`/rooms/${code}/react`, { player_id: me.player_id, emoji });
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.warn("reaction send failed", err);
     } finally {
       setTimeout(() => setSending(false), 120);
     }

@@ -64,8 +64,8 @@ export async function generateShareCard(state, code) {
       ctx.beginPath();
       roundRect(ctx, px, py, ps, ps, 18);
       ctx.stroke();
-    } catch {
-      /* skip if cannot load */
+    } catch (err) {
+      console.warn("share card: failed to load winner photo", err);
     }
   }
 
