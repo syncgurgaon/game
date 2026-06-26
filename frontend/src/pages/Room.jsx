@@ -7,7 +7,9 @@ import Lobby from "@/components/game/Lobby";
 import Quiz from "@/components/game/Quiz";
 import RoundResult from "@/components/game/RoundResult";
 import FinalLeaderboard from "@/components/game/FinalLeaderboard";
+import { FloatingReactions } from "@/components/game/Reactions";
 import { useAudio } from "@/context/AudioContext";
+import { haptic } from "@/lib/haptic";
 
 export default function Room() {
   const { code } = useParams();
@@ -15,6 +17,7 @@ export default function Room() {
   const [state, setState] = useState(null);
   const [me, setMe] = useState(null);
   const [connStatus, setConnStatus] = useState("connecting"); // connecting | connected | reconnecting
+  const [reactions, setReactions] = useState([]);
   const wsRef = useRef(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimerRef = useRef(null);
@@ -53,6 +56,22 @@ export default function Room() {
             setTimeout(() => navigate("/"), 1200);
             return;
           }
+          if (msg.type === "reaction") {
+            const key = `${msg.player_id}-${msg.ts}-${Math.random()}`;
+            const item = {
+              key,
+              emoji: msg.emoji,
+              name: msg.name,
+              x: Math.floor(Math.random() * (window.innerWidth - 100)),
+              rot: (Math.random() * 30) - 15,
+            };
+            setReactions((rs) => [...rs.slice(-12), item]);
+            haptic("tick");
+            setTimeout(() => {
+              setReactions((rs) => rs.filter((r) => r.key !== key));
+            }, 2600);
+            return;
+          }
           if (msg.type === "state") {
             setState((prev) => {
               const prevStatus = prevStatusRef.current;
@@ -61,9 +80,15 @@ export default function Room() {
                 if (newStatus === "playing") playSfx("click");
                 if (newStatus === "round_result") {
                   const myAns = msg.state.round_answers?.[me.player_id];
-                  if (myAns) playSfx(myAns.correct ? "correct" : "wrong");
+                  if (myAns) {
+                    playSfx(myAns.correct ? "correct" : "wrong");
+                    haptic(myAns.correct ? "success" : "error");
+                  }
                 }
-                if (newStatus === "finished") playSfx("win");
+                if (newStatus === "finished") {
+                  playSfx("win");
+                  haptic("success");
+                }
                 prevStatusRef.current = newStatus;
               }
               if (prev && prev.status === "lobby" && newStatus === "lobby") {
@@ -132,6 +157,7 @@ export default function Room() {
 
   return (
     <div className="min-h-screen px-4 py-8 max-w-5xl mx-auto" data-testid="room-page">
+      <FloatingReactions items={reactions} />
       {connStatus === "reconnecting" && (
         <div
           data-testid="reconnect-banner"

@@ -54,6 +54,10 @@ class UpdateSettingsRequest(BaseModel):
 class RematchRequest(BaseModel):
     player_id: str
 
+class ReactRequest(BaseModel):
+    player_id: str
+    emoji: str
+
 # ============ In-memory game state ============
 # rooms_state[code] = {
 #   "code": str,
@@ -414,6 +418,33 @@ async def kick_player(code: str, player_id: str, target_id: str):
         manager.disconnect(code, target_id)
     await manager.broadcast(code, {"type": "state", "state": public_state(code)})
     return {"ok": True}
+
+ALLOWED_EMOJIS = {"😂", "😱", "👍", "❤️", "🔥", "🤯", "😭", "🥹"}
+
+@api_router.post("/rooms/{code}/react")
+async def react(code: str, body: ReactRequest):
+    code = code.upper()
+    s = rooms_state.get(code)
+    if not s:
+        raise HTTPException(404, "Room not found")
+    if body.emoji not in ALLOWED_EMOJIS:
+        raise HTTPException(400, "Invalid emoji")
+    player = next((p for p in s["players"] if p["id"] == body.player_id), None)
+    if not player:
+        raise HTTPException(404, "Player not in room")
+    await manager.broadcast(code, {
+        "type": "reaction",
+        "player_id": body.player_id,
+        "name": player["name"],
+        "emoji": body.emoji,
+        "ts": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"ok": True}
+
+@api_router.get("/games")
+async def list_games(limit: int = 30):
+    docs = await db.games.find({}, {"_id": 0}).sort("finished_at", -1).to_list(min(limit, 100))
+    return {"games": docs}
 
 async def _advance_after_result(code: str, round_num: int):
     await asyncio.sleep(5)

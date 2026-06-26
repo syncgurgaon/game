@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAudio } from "@/context/AudioContext";
+import { haptic } from "@/lib/haptic";
 
 export default function Quiz({ state, me, myPlayer }) {
   const q = state.question;
@@ -31,6 +32,7 @@ export default function Quiz({ state, me, myPlayer }) {
       if (left <= 5 && Math.floor(left) !== lastTickRef.current && left > 0) {
         lastTickRef.current = Math.floor(left);
         playSfx("tick");
+        haptic("tick");
       }
     };
     tick();
@@ -42,6 +44,7 @@ export default function Quiz({ state, me, myPlayer }) {
     if (answered || submitting) return;
     setSelected(optionId);
     setSubmitting(true);
+    haptic("medium");
     const timeTaken = Date.now() - startTimeRef.current;
     try {
       await api.post(`/rooms/${state.code}/answer`, {

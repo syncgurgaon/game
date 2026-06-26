@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { CheckCircle2, XCircle } from "lucide-react";
 import InitialAvatar from "@/components/InitialAvatar";
+import ReactionBar from "@/components/game/Reactions";
 
 export default function RoundResult({ state, me }) {
   const q = state.question;
@@ -89,6 +90,8 @@ export default function RoundResult({ state, me }) {
       <p className="text-center font-body text-base mt-6 text-[var(--ink)]/60">
         Next round in a moment...
       </p>
+
+      <ReactionBar code={state.code} me={me} />
     </div>
   );
 }

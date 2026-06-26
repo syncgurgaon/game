@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, Users, ArrowRight } from "lucide-react";
+import { Sparkles, Users, ArrowRight, History as HistoryIcon } from "lucide-react";
 import { toast } from "sonner";
 import PhotoUpload from "@/components/PhotoUpload";
 import { api } from "@/lib/api";
@@ -110,6 +110,14 @@ export default function Home() {
               <Users strokeWidth={3} /> Join Room
             </motion.button>
           </div>
+
+          <Link
+            to="/history"
+            data-testid="history-link"
+            className="font-display uppercase tracking-widest text-sm mt-6 inline-flex items-center gap-1 hover:underline"
+          >
+            <HistoryIcon size={14} strokeWidth={3} /> View Past Games
+          </Link>
 
           {/* Sample polaroids decoration */}
           <div className="hidden md:flex justify-center gap-10 mt-20">

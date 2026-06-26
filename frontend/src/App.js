@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import Home from "@/pages/Home";
 import Room from "@/pages/Room";
+import History from "@/pages/History";
 import { AudioProvider } from "@/context/AudioContext";
 import AudioToggle from "@/components/AudioToggle";
 
@@ -14,6 +15,7 @@ function App() {
           <AudioToggle />
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/history" element={<History />} />
             <Route path="/room/:code" element={<Room />} />
           </Routes>
         </BrowserRouter>
