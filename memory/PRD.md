@@ -23,25 +23,22 @@ Friend groups (3-12 people) on a video call or in person, wanting a quick 5-10 m
 6. Proper error handling (duplicate names, room not found, full rooms, game already started, large images)
 
 ## Implemented (Feb 2026)
-- ✅ Backend REST: POST /api/rooms, /join, /start, /answer, GET /api/rooms/{code}
-- ✅ Backend WebSocket: /api/ws/{code}/{player_id} broadcasting full state on transitions
-- ✅ Game loop: lobby → playing (15s rounds) → round_result (5s reveal) → next round → finished
-- ✅ Scoring: 1000pts max, decays linearly with time, min 200 for a correct answer
-- ✅ Dummy distractor names when <4 real players
-- ✅ Frontend Home page with Create/Join modes (with URL `?code=XXXXX` deeplink)
-- ✅ Lobby with copy-link, player polaroid cards, host-only Start button
-- ✅ Quiz screen with countdown timer (red pulse + tick SFX last 5s), polaroid photo, 4 options
-- ✅ Round result screen showing correct player + standings
-- ✅ Final leaderboard with animated podium (1st/2nd/3rd)
-- ✅ Procedural WebAudio music + SFX togglable via global button
-- ✅ Photo client-side compression to keep payloads small
+- ✅ Backend REST: POST /api/rooms, /join, /start, /answer, /settings, /kick, /rematch; GET /api/rooms/{code}
+- ✅ Backend WebSocket: /api/ws/{code}/{player_id} broadcasting state on transitions + 'kicked' notification
+- ✅ Game loop: lobby → playing (configurable 10/15/20/30s rounds) → round_result → next round → finished
+- ✅ Scoring: 1000pts max, decays with time, min 200 for correct
+- ✅ Dummy decoys when <4 players
+- ✅ Lobby hides childhood photos (InitialAvatar) — only revealed during the player's own round and on final leaderboard
+- ✅ Host can configure round duration & number of rounds in lobby
+- ✅ Host can kick players in lobby (WS notification to kicked player)
+- ✅ WS auto-reconnect with exponential backoff + reconnect banner + live badge
+- ✅ Real curated audio assets (mixkit royalty-free): nostalgic music loop + correct/wrong/tick/click/join/win SFX (pooled HTMLAudio for fast re-plays)
+- ✅ MongoDB persistence: finished games inserted into `games` collection
+- ✅ "Play Again, Same Crew" rematch: host-only, resets scores/state, keeps players + photos, broadcasts new lobby state
+- ✅ Mid-game refresh works (sessionStorage preserves identity, WS reconnects automatically)
 
 ## Backlog / Next Tasks
-- **P1**: Persist completed games to MongoDB for "play again with same group" / room history
-- **P1**: Allow host to kick disconnected players from lobby
-- **P1**: Mid-game rejoin via sessionStorage (token already saved; just needs UX for reconnect prompt)
-- **P2**: Custom round duration / scoring config in lobby
-- **P2**: Reaction emojis during round_result screen
-- **P2**: "Share Card" image generator post-game (for social sharing → viral loop)
-- **P2**: Real audio assets (replace procedural tones with curated nostalgic chimes)
+- **P2**: Custom emojis/reactions during round_result
+- **P2**: Auto-generated shareable PNG result card (canvas export of final leaderboard) for social virality
 - **P2**: Mobile haptic feedback on answer submit
+- **P2**: Past games history page (uses persisted `games` collection)
