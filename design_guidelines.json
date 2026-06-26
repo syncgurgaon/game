@@ -1,0 +1,104 @@
+{
+  "theme_and_archetype": {
+    "domain": "Casual Multiplayer Web Game",
+    "theme": "Light",
+    "archetype": "Archetype 3 (Pastel & Soft) mixed with Neo-Brutalist UI",
+    "vibe": "Nostalgic, warm, playful, highly tactile and interactive",
+    "rationale": "A childhood photo guessing game needs to feel fun, approachable, and memorable. Combining soft, warm pastel colors (evoking nostalgia and old photos) with neo-brutalist harsh borders and shadows makes it feel like a modern, engaging web game."
+  },
+  "typography": {
+    "headings": {
+      "family": "Cabinet Grotesk",
+      "weights": ["800", "900"],
+      "usage": "Use for game titles, countdown timer, large scores, and winner announcements. Keep tracking tight (tracking-tighter) for massive text."
+    },
+    "body": {
+      "family": "Nunito",
+      "weights": ["600", "700"],
+      "usage": "Use for player names, instructions, buttons, and leaderboard details. Nunito provides a soft, rounded, friendly feel that contrasts perfectly with the harsh borders."
+    },
+    "scale": {
+      "h1": "text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-tighter",
+      "h2": "text-3xl sm:text-4xl font-extrabold uppercase",
+      "h3": "text-xl sm:text-2xl font-bold",
+      "body": "text-lg md:text-xl font-bold",
+      "small": "text-sm md:text-base font-bold uppercase tracking-widest"
+    }
+  },
+  "colors": {
+    "backgrounds": {
+      "base": "#F4F0EA",
+      "paper": "#FFFDF9",
+      "card_yellow": "#FFE873",
+      "card_mint": "#7BF1A8",
+      "card_lavender": "#B4A2FE",
+      "card_peach": "#FF8A5B"
+    },
+    "text_and_borders": {
+      "primary": "#1A1A1A",
+      "muted": "#4A4A4A"
+    },
+    "accents": {
+      "correct": "#7BF1A8",
+      "wrong": "#FF6B6B",
+      "timer_warning": "#FF3B30"
+    },
+    "rules": [
+      "No generic gray borders. All structural borders must be thick #1A1A1A (border-2 or border-4).",
+      "No soft, blurry drop shadows. Use solid, hard shadows: shadow-[4px_4px_0px_#1A1A1A] or shadow-[8px_8px_0px_#1A1A1A].",
+      "Use colors to differentiate players in the lobby (assign random pastel background to each player's avatar card)."
+    ]
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous spacing. Items should feel like tactile physical cards or polaroids laid out on a table.",
+    "containers": "Use max-w-4xl mx-auto for the main game arena. Add thick padding (p-6 to p-12).",
+    "cards": "Cards must have internal padding of p-6 or p-8 to prevent text collision with thick borders.",
+    "grid": "Use BENTO style grids for the 4 options. grid-cols-1 sm:grid-cols-2 gap-4 or gap-6."
+  },
+  "components": {
+    "buttons": {
+      "style": "bg-card_peach text-primary border-4 border-primary shadow-[4px_4px_0px_#1A1A1A] font-headings uppercase text-xl py-4 px-8 rounded-xl",
+      "hover": "hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#1A1A1A] transition-all duration-150",
+      "active": "active:translate-x-[4px] active:translate-y-[4px] active:shadow-none"
+    },
+    "inputs": {
+      "style": "bg-paper border-4 border-primary p-4 rounded-xl text-xl font-body focus:outline-none focus:ring-0 focus:shadow-[4px_4px_0px_#1A1A1A] transition-all"
+    },
+    "polaroid_image_frame": {
+      "style": "bg-paper border-4 border-primary p-4 pb-16 rounded-md shadow-[8px_8px_0px_#1A1A1A] rotate-[-2deg] hover:rotate-0 transition-transform duration-300 relative max-w-md mx-auto",
+      "description": "Used for the childhood photos. Thick white border, much thicker at the bottom, mimicking an old Polaroid. Use aspect-square for the inner image."
+    },
+    "lobby_avatar": {
+      "style": "w-16 h-16 rounded-full border-4 border-primary shadow-[2px_2px_0px_#1A1A1A] overflow-hidden bg-card_yellow flex items-center justify-center font-bold text-xl"
+    },
+    "timer_bar": {
+      "style": "h-8 rounded-full border-4 border-primary bg-paper w-full relative overflow-hidden shadow-[inset_0px_4px_0px_rgba(0,0,0,0.1)]",
+      "fill": "h-full bg-card_yellow border-r-4 border-primary origin-left transition-all duration-1000 ease-linear"
+    }
+  },
+  "motion_and_interactions": {
+    "transitions": "Fast, snappy, zero-smoothing. transition-all duration-150 ease-out.",
+    "reveal": "When answering correctly, the chosen button flashes green (bg-correct), others gray out with opacity-50.",
+    "timer": "The timer bar shrinks linearly. In the last 5 seconds, text pulses red and scales up/down using a custom keyframe animation.",
+    "leaderboard": "Podium elements slide up from the bottom staggered (3rd, 2nd, 1st) using framer-motion or simple css delays."
+  },
+  "media_urls": {
+    "hero_decoration": {
+      "url": "https://images.unsplash.com/photo-1612547036242-77002603e5aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTV8MHwxfHNlYXJjaHwyfHxyZXRybyUyMHBvbGFyb2lkJTIwY2FtZXJhfGVufDB8fHx8MTc4MjQ5NzU5MXww&ixlib=rb-4.1.0&q=85",
+      "description": "Retro polaroid camera to use as a decorative floating element on the landing page."
+    },
+    "sample_childhood_photo_1": {
+      "url": "https://images.unsplash.com/photo-1607453998774-d533f65dac99?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwyfHxjaGlsZGhvb2QlMjBmcmllbmRzJTIwcGhvdG98ZW58MHx8fHwxNzgyNDk3NTk2fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Sample childhood photo for UI mocking/testing."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Install and use 'lucide-react' for any necessary icons (like volume toggle, share link, users icon).",
+    "DO NOT use Shadcn UI's default soft minimal styles. You must override the borders, shadows, and radii to match the Neo-brutalist theme (border-4 border-[#1A1A1A], solid #1A1A1A shadows, no blur on shadows).",
+    "Build the UI focusing heavily on the physical 'card' or 'polaroid' aesthetic for the main quiz image.",
+    "Include 'data-testid' attributes on all interactive and informational elements (buttons, inputs, options, share link, start game, scores, player names).",
+    "For the background, apply a subtle CSS noise texture or repeating dot grid pattern over the base #F4F0EA color to enhance the retro/tactile feel.",
+    "Integrate simple HTML5 Audio elements for the requested nostalgic background music and sound effects (tick, correct, wrong). Keep them togglable via a UI button.",
+    "Implement the different distinct game states: Home -> Lobby -> Quiz Round -> Round Result -> Final Leaderboard. Ensure fluid and clear transitions between these states."
+  ]
+}
