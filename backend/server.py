@@ -51,6 +51,9 @@ class UpdateSettingsRequest(BaseModel):
     round_duration_s: Optional[int] = None
     rounds_count: Optional[int] = None
 
+class RematchRequest(BaseModel):
+    player_id: str
+
 # ============ In-memory game state ============
 # rooms_state[code] = {
 #   "code": str,
@@ -208,6 +211,28 @@ async def end_round_after_delay(code: str, round_num: int, delay_s: int):
         if not s or s["current_round"] != round_num or s["status"] != "round_result":
             return
     await start_round(code)
+    # If that was the last round, persist the game record
+    s = rooms_state.get(code)
+    if s and s["status"] == "finished":
+        await persist_finished_game(code)
+
+async def persist_finished_game(code: str):
+    s = rooms_state.get(code)
+    if not s:
+        return
+    try:
+        await db.games.insert_one({
+            "code": code,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "rounds_played": s["total_rounds"],
+            "round_duration_s": s.get("round_duration_s", 15),
+            "results": [
+                {"id": p["id"], "name": p["name"], "score": p["score"], "is_host": p["is_host"]}
+                for p in sorted(s["players"], key=lambda x: -x["score"])
+            ],
+        })
+    except Exception as e:
+        logger.error(f"Failed to persist game {code}: {e}")
 
 # ============ REST endpoints ============
 
@@ -397,6 +422,32 @@ async def _advance_after_result(code: str, round_num: int):
         if not s or s["current_round"] != round_num or s["status"] != "round_result":
             return
     await start_round(code)
+    s = rooms_state.get(code)
+    if s and s["status"] == "finished":
+        await persist_finished_game(code)
+
+@api_router.post("/rooms/{code}/rematch")
+async def rematch(code: str, body: RematchRequest):
+    code = code.upper()
+    async with rooms_lock:
+        s = rooms_state.get(code)
+        if not s:
+            raise HTTPException(404, "Room not found")
+        if s["host_id"] != body.player_id:
+            raise HTTPException(403, "Only host can start a rematch")
+        if s["status"] != "finished":
+            raise HTTPException(400, "Game must be finished first")
+        # Reset state, keep players/photos/identity
+        for p in s["players"]:
+            p["score"] = 0
+        s["status"] = "lobby"
+        s["current_round"] = 0
+        s["total_rounds"] = 0
+        s["round_order"] = []
+        s["current_question"] = None
+        s["round_answers"] = {}
+    await manager.broadcast(code, {"type": "state", "state": public_state(code)})
+    return {"ok": True}
 
 # ============ WebSocket endpoint ============
 

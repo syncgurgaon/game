@@ -1,12 +1,16 @@
 import { motion } from "framer-motion";
 import { Trophy, Home, RotateCcw } from "lucide-react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 const podiumColors = ["var(--c-yellow)", "var(--c-lavender)", "var(--c-peach)"];
 const podiumLabels = ["1st", "2nd", "3rd"];
 
-export default function FinalLeaderboard({ state, me }) {
+export default function FinalLeaderboard({ state, me, isHost }) {
   const navigate = useNavigate();
+  const [rematching, setRematching] = useState(false);
   const sorted = [...state.players].sort((a, b) => b.score - a.score);
   const top3 = sorted.slice(0, 3);
   const rest = sorted.slice(3);
@@ -16,6 +20,18 @@ export default function FinalLeaderboard({ state, me }) {
   const goHome = () => {
     sessionStorage.removeItem(`room_${state.code}`);
     navigate("/");
+  };
+
+  const playAgain = async () => {
+    setRematching(true);
+    try {
+      await api.post(`/rooms/${state.code}/rematch`, { player_id: me.player_id });
+      toast.success("New round, same crew!");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Couldn't start rematch");
+    } finally {
+      setRematching(false);
+    }
   };
 
   return (
@@ -92,19 +108,29 @@ export default function FinalLeaderboard({ state, me }) {
       )}
 
       <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12">
-        <button
-          data-testid="play-again-btn"
-          onClick={goHome}
-          className="nb-btn px-6 py-4 bg-[var(--c-mint)] inline-flex items-center justify-center gap-2"
-        >
-          <RotateCcw strokeWidth={3} /> Play Again
-        </button>
+        {isHost ? (
+          <button
+            data-testid="play-again-btn"
+            onClick={playAgain}
+            disabled={rematching}
+            className="nb-btn px-6 py-4 bg-[var(--c-mint)] inline-flex items-center justify-center gap-2"
+          >
+            <RotateCcw strokeWidth={3} /> {rematching ? "Restarting..." : "Play Again, Same Crew"}
+          </button>
+        ) : (
+          <div
+            data-testid="waiting-rematch-msg"
+            className="font-body text-base text-[var(--ink)]/70 inline-flex items-center justify-center px-6 py-4"
+          >
+            Waiting for the host to start a rematch...
+          </div>
+        )}
         <button
           data-testid="go-home-btn"
           onClick={goHome}
           className="nb-btn px-6 py-4 bg-[var(--bg-paper)] inline-flex items-center justify-center gap-2"
         >
-          <Home strokeWidth={3} /> Home
+          <Home strokeWidth={3} /> Leave
         </button>
       </div>
     </div>

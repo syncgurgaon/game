@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 3 testing: validated all three enhancements (WS reconnect UX assets, real audio assets, DB persistence + rematch). Backend full game flow + rematch + DB persistence verified end-to-end. All 7 audio assets serve 200/audio/mpeg. Frontend home loads with audio toggle button working, zero console errors.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "GET /api/ returns 200 with API banner",
+    "POST /api/rooms creates host + room code (200)",
+    "POST /api/rooms/{code}/join adds 2nd player (200)",
+    "GET /api/rooms/{code} hides photos in lobby (players[].photo == '')",
+    "POST /api/rooms/{code}/settings round_duration_s=10 rounds_count=1 (200)",
+    "POST /api/rooms/{code}/start by host (200)",
+    "POST /api/rooms/{code}/answer accepted for both players (200)",
+    "Game auto-advances to status=finished after final round (with auto-end on all-answered)",
+    "After finished: photos revealed (players[].photo populated)",
+    "MongoDB games collection: record inserted with code, finished_at, rounds_played, round_duration_s, results[] sorted by score desc; total 2 game docs present",
+    "POST /api/rooms/{code}/rematch by non-host returns 403 ('Only host can start a rematch')",
+    "POST /api/rooms/{code}/rematch by host returns 200 {ok:true}",
+    "After rematch: status='lobby', all scores=0, photos hidden again",
+    "POST /api/rooms/{code}/rematch in lobby returns 400 ('Game must be finished first')",
+    "All 7 audio files (/audio/music|correct|wrong|tick|click|join|win.mp3) return 200 with content-type audio/mpeg",
+    "Frontend home loads (title 'Emergent | Fullstack App'), Create/Join Room buttons render",
+    "data-testid=audio-toggle-btn present and clickable; toggling on/off produces ZERO console errors",
+    "In-page fetch of /audio/music.mp3 returns 200 audio/mpeg from frontend origin"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Reconnect-banner and conn-ok badge UI flows were not exercised in-browser (would require multi-tab/WS simulation); however Room.jsx changes are isolated and backend WS endpoint behavior (broadcast on connect/disconnect) was confirmed indirectly during the full game flow. DB persistence happens via persist_finished_game() which is invoked both via end_round_after_delay and _advance_after_result – this run hit the all-answered path and the record was still persisted correctly."
+}
