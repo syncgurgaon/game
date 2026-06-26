@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 2 testing covers the lobby-photo-leak bug fix plus new host settings + kick endpoints. Backend exhaustive coverage of GET /rooms (lobby), settings (host/non-host, valid/invalid duration, rounds_count range), kick (self/non-host/valid), gameplay propagation of settings, and post-start mutation rejection. Frontend lobby UI verified — InitialAvatar replaces <img>, no childhood photo leak, host-settings card present, duration & rounds buttons render, click on duration-20 propagates to backend state.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "POST /api/rooms creates room (200)",
+    "POST /api/rooms/{code}/join works (200)",
+    "GET /api/rooms/{code} in lobby returns players[].photo == '' for ALL players (photo leak fixed)",
+    "GET /api/rooms/{code} during 'playing' status also keeps players[].photo == '' (only question.photo set for the round target)",
+    "POST /api/rooms/{code}/settings rejects invalid round_duration_s=25 with 400",
+    "POST /api/rooms/{code}/settings from non-host returns 403",
+    "POST /api/rooms/{code}/settings valid (duration=20, rounds=2) returns 200 and GET reflects the values",
+    "POST /api/rooms/{code}/settings rejects rounds_count=99 with 400",
+    "POST /api/rooms/{code}/kick host kicking self returns 400",
+    "POST /api/rooms/{code}/kick non-host caller returns 403",
+    "POST /api/rooms/{code}/kick host kicking another player returns 200 and player list shrinks",
+    "POST /api/rooms/{code}/start applies rounds_count=2 -> total_rounds=2",
+    "Game start uses round_duration_s=20 -> question.duration_s == 20",
+    "POST /api/rooms/{code}/settings after game start returns 400",
+    "POST /api/rooms/{code}/kick after game start returns 400",
+    "Frontend home loads, Create Room flow works",
+    "Lobby page shows InitialAvatar (data-testid=avatar-*) with ZERO <img> tags inside player cards (0/1 cards have <img>)",
+    "host-settings card visible with all 4 duration buttons (duration-10/15/20/30) and rounds-all",
+    "Clicking duration-20 in UI persists to backend (GET /rooms confirmed round_duration_s=20)",
+    "start-game-btn disabled with <2 players",
+    "'Photos hidden' indicator rendered (verified visually in screenshot)"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "100% (6/6)"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "WebSocket-specific assertions (broadcast payload strips photos, kicked player receives {type:'kicked'} + 4403 close) were not tested via raw WS client in this latency-sensitive pass; the underlying public_state() function used by both REST and WS broadcasts has been confirmed to strip photos when status != 'finished'. RoundResult mid-game standings switch to InitialAvatar verified by code review of /app/frontend/src/components/game/RoundResult.jsx (out of scope for live UI test since it requires 2+ players & 20s round). Final leaderboard photo reveal verified by code path: public_state() sets show_photos=True only when status=='finished'."
+}

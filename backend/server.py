@@ -46,6 +46,11 @@ class SubmitAnswerRequest(BaseModel):
     answer: str  # chosen player name (id actually)
     time_taken_ms: int
 
+class UpdateSettingsRequest(BaseModel):
+    player_id: str
+    round_duration_s: Optional[int] = None
+    rounds_count: Optional[int] = None
+
 # ============ In-memory game state ============
 # rooms_state[code] = {
 #   "code": str,
@@ -104,12 +109,14 @@ def public_state(code: str, hide_answer: bool = True) -> dict:
     s = rooms_state.get(code)
     if not s:
         return {}
-    # Build players list without the photo to keep payload smaller (photo only in current question)
+    # Hide childhood photos in player list — only reveal during the player's round (Quiz photo)
+    # or in the final leaderboard. This preserves the guessing surprise.
+    show_photos = s["status"] == "finished"
     players = [
         {
             "id": p["id"],
             "name": p["name"],
-            "photo": p["photo"],
+            "photo": p["photo"] if show_photos else "",
             "score": p["score"],
             "is_host": p["is_host"],
             "connected": p["connected"],
@@ -136,6 +143,8 @@ def public_state(code: str, hide_answer: bool = True) -> dict:
         "players": players,
         "current_round": s["current_round"],
         "total_rounds": s["total_rounds"],
+        "round_duration_s": s.get("round_duration_s", 15),
+        "rounds_count_setting": s.get("rounds_count_setting", 0),
         "question": public_q,
         "round_answers": s.get("round_answers", {}) if s["status"] in ("round_result", "finished") else {},
     }
@@ -162,7 +171,7 @@ def build_question(s: dict) -> dict:
         "target_player_id": target_id,
         "photo": target["photo"],
         "options": options,
-        "duration_s": 15,
+        "duration_s": s.get("round_duration_s", 15),
         "started_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -182,7 +191,7 @@ async def start_round(code: str):
         s["round_answers"] = {}
     await manager.broadcast(code, {"type": "state", "state": public_state(code)})
     # Schedule end of round
-    asyncio.create_task(end_round_after_delay(code, s["current_round"], 15))
+    asyncio.create_task(end_round_after_delay(code, s["current_round"], s.get("round_duration_s", 15)))
 
 async def end_round_after_delay(code: str, round_num: int, delay_s: int):
     await asyncio.sleep(delay_s + 0.5)
@@ -225,6 +234,8 @@ async def create_room(body: CreateRoomRequest):
             "round_order": [],
             "current_question": None,
             "round_answers": {},
+            "round_duration_s": 15,
+            "rounds_count_setting": 0,  # 0 = use all players
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
     # persist minimal record
@@ -274,6 +285,9 @@ async def start_game(code: str, player_id: str):
             raise HTTPException(400, "Need at least 2 players to start")
         order = [p["id"] for p in s["players"]]
         random.shuffle(order)
+        configured = s.get("rounds_count_setting", 0)
+        if configured and 0 < configured < len(order):
+            order = order[:configured]
         s["round_order"] = order
         s["total_rounds"] = len(order)
         s["current_round"] = 0
@@ -325,6 +339,56 @@ async def submit_answer(code: str, body: SubmitAnswerRequest):
         await manager.broadcast(code, {"type": "state", "state": public_state(code, hide_answer=False)})
         asyncio.create_task(_advance_after_result(code, round_num_now))
     return {"correct": correct, "points": points}
+
+@api_router.post("/rooms/{code}/settings")
+async def update_settings(code: str, body: UpdateSettingsRequest):
+    code = code.upper()
+    async with rooms_lock:
+        s = rooms_state.get(code)
+        if not s:
+            raise HTTPException(404, "Room not found")
+        if s["host_id"] != body.player_id:
+            raise HTTPException(403, "Only host can change settings")
+        if s["status"] != "lobby":
+            raise HTTPException(400, "Cannot change settings after game started")
+        if body.round_duration_s is not None:
+            if body.round_duration_s not in (10, 15, 20, 30):
+                raise HTTPException(400, "round_duration_s must be 10, 15, 20, or 30")
+            s["round_duration_s"] = body.round_duration_s
+        if body.rounds_count is not None:
+            if body.rounds_count < 0 or body.rounds_count > 50:
+                raise HTTPException(400, "rounds_count out of range")
+            s["rounds_count_setting"] = body.rounds_count
+    await manager.broadcast(code, {"type": "state", "state": public_state(code)})
+    return {"ok": True}
+
+@api_router.post("/rooms/{code}/kick")
+async def kick_player(code: str, player_id: str, target_id: str):
+    code = code.upper()
+    async with rooms_lock:
+        s = rooms_state.get(code)
+        if not s:
+            raise HTTPException(404, "Room not found")
+        if s["host_id"] != player_id:
+            raise HTTPException(403, "Only host can kick")
+        if s["status"] != "lobby":
+            raise HTTPException(400, "Can only kick in lobby")
+        if target_id == s["host_id"]:
+            raise HTTPException(400, "Host cannot kick themselves")
+        before = len(s["players"])
+        s["players"] = [p for p in s["players"] if p["id"] != target_id]
+        if len(s["players"]) == before:
+            raise HTTPException(404, "Player not found")
+    # Notify kicked player and broadcast new state
+    if code in manager.connections and target_id in manager.connections[code]:
+        try:
+            await manager.connections[code][target_id].send_json({"type": "kicked"})
+            await manager.connections[code][target_id].close(code=4403)
+        except Exception:
+            pass
+        manager.disconnect(code, target_id)
+    await manager.broadcast(code, {"type": "state", "state": public_state(code)})
+    return {"ok": True}
 
 async def _advance_after_result(code: str, round_num: int):
     await asyncio.sleep(5)

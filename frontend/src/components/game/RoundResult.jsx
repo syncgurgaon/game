@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { CheckCircle2, XCircle } from "lucide-react";
+import InitialAvatar from "@/components/InitialAvatar";
 
 export default function RoundResult({ state, me }) {
   const q = state.question;
@@ -76,7 +77,7 @@ export default function RoundResult({ state, me }) {
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="font-display text-sm w-6">{i + 1}.</span>
-                  <img src={p.photo} alt={p.name} className="w-8 h-8 rounded-full border-2 border-[var(--ink)] object-cover flex-shrink-0" />
+                  <InitialAvatar name={p.name} size={32} />
                   <span className="font-body truncate">{p.name}</span>
                 </div>
                 <span className="font-display text-lg">{p.score}</span>

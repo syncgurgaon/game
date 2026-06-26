@@ -37,6 +37,12 @@ export default function Room() {
     ws.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data);
+        if (msg.type === "kicked") {
+          toast.error("You were removed by the host");
+          sessionStorage.removeItem(`room_${code}`);
+          setTimeout(() => navigate("/"), 1200);
+          return;
+        }
         if (msg.type === "state") {
           setState((prev) => {
             // play sound effects on transitions
@@ -68,6 +74,8 @@ export default function Room() {
         toast.error("Room not found or you're not a member");
         sessionStorage.removeItem(`room_${code}`);
         navigate("/");
+      } else if (ev.code === 4403) {
+        // already handled by 'kicked' message
       }
     };
     // Also fetch initial state via REST
