@@ -40,7 +40,9 @@ Friend groups (3-12 people) on a video call or in person, wanting a quick 5-10 m
 ## Backlog / Next Tasks
 - ✅ Past games history page (`/history` Hall of Fame, queries `games` collection)
 - ✅ Reactions/emojis during round result (REST `/react` → WS broadcast → floating animations)
-- ✅ Mobile haptic feedback (`navigator.vibrate` patterns: light/medium/success/error/tick)
-- **P2**: Auto-generated shareable PNG result card (canvas export of final leaderboard) for social virality
-- **P2**: Filter Hall of Fame by room code or player name
-- **P2**: Per-player stats (win count, average score) using the persisted history
+- ✅ Mobile haptic feedback (`navigator.vibrate` patterns)
+- ✅ Auto-generated shareable PNG result card (canvas, 1080x1350, downloads from FinalLeaderboard)
+- ✅ Filter Hall of Fame by room code or player name (client-side from /games response)
+- ✅ Per-player stats endpoint `/api/stats/players` (MongoDB aggregation) + Top Players UI on /history
+- **P3**: Per-player profile page (drill into one player's history)
+- **P3**: Share card variants (winner-only spotlight, group polaroid collage)
