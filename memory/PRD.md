@@ -38,7 +38,9 @@ Friend groups (3-12 people) on a video call or in person, wanting a quick 5-10 m
 - ✅ Mid-game refresh works (sessionStorage preserves identity, WS reconnects automatically)
 
 ## Backlog / Next Tasks
-- **P2**: Custom emojis/reactions during round_result
+- ✅ Past games history page (`/history` Hall of Fame, queries `games` collection)
+- ✅ Reactions/emojis during round result (REST `/react` → WS broadcast → floating animations)
+- ✅ Mobile haptic feedback (`navigator.vibrate` patterns: light/medium/success/error/tick)
 - **P2**: Auto-generated shareable PNG result card (canvas export of final leaderboard) for social virality
-- **P2**: Mobile haptic feedback on answer submit
-- **P2**: Past games history page (uses persisted `games` collection)
+- **P2**: Filter Hall of Fame by room code or player name
+- **P2**: Per-player stats (win count, average score) using the persisted history
