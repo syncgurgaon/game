@@ -131,6 +131,7 @@ def public_state(code: str, hide_answer: bool = True) -> dict:
             "id": p["id"],
             "name": p["name"],
             "photo": p["photo"] if show_photos else "",
+            "photo_ready": bool(p["photo"]),
             "score": p["score"],
             "is_host": p["is_host"],
             "connected": p["connected"],

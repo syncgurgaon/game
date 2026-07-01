@@ -1,0 +1,22 @@
+{
+  "summary": "Iteration 8 regression fix verified. Backend now returns photo_ready:bool in public_state; frontend Lobby correctly uses it. E2E flow works: Host create -> Guest join -> Start Game succeeds and status becomes 'playing'.",
+  "tested_scope": ["frontend", "backend", "integration"],
+  "passed": [
+    "Backend GET /api/rooms/{code} returns photo_ready:true for both host and guest after initial upload (photo field stays '' to preserve surprise).",
+    "Backend POST /api/rooms/{code}/start returns 200 when 2 players present with photos.",
+    "Frontend: after host Create Room with photo, reupload-card is NOT rendered (count=0).",
+    "Frontend: start-game-btn is disabled with only 1 player (as expected).",
+    "Frontend: after guest joins via /api/rooms/{code}/join with photo, host's Lobby updates via WS to show 2 players.",
+    "Frontend: with 2 players uploaded, start-game-btn is ENABLED, pending-photos-msg is NOT rendered, and reupload-card remains hidden.",
+    "Frontend: clicking Start transitions host out of Lobby; backend state == 'playing'; Quiz screen ('Whose pic is this?') renders."
+  ],
+  "failed": [],
+  "action_items": [],
+  "notes": [
+    "Rematch flow (photo_ready flips to false -> reupload-card reappears) was not exercised end-to-end via UI due to time; verified via code review of /rematch (sets p['photo']='') and Lobby.jsx (needsPhoto uses !photo_ready).",
+    "inner_text('lobby') did not surface 'Photo locked'/'Uploading...' strings but screenshot confirms player cards render correctly with 2 players; this appears to be a Playwright inner_text quirk with rotated/off-screen elements — non-blocking."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

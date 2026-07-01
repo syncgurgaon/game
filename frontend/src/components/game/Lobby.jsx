@@ -27,8 +27,8 @@ export default function Lobby({ state, me, isHost }) {
   const duration = state.round_duration_s || 15;
   const roundsSetting = state.rounds_count_setting || 0; // 0 = all players
   const myPlayer = state.players.find((p) => p.id === me.player_id);
-  const needsPhoto = myPlayer && !myPlayer.photo;
-  const pendingCount = state.players.filter((p) => !p.photo).length;
+  const needsPhoto = myPlayer && !myPlayer.photo_ready;
+  const pendingCount = state.players.filter((p) => !p.photo_ready).length;
   const canStart = state.players.length >= 2 && pendingCount === 0;
 
   const uploadPhoto = async () => {
@@ -253,7 +253,7 @@ export default function Lobby({ state, me, isHost }) {
                 <p className="font-display uppercase text-sm truncate max-w-[120px]">{p.name}</p>
               </div>
               <p className="font-body text-xs uppercase tracking-widest text-[var(--ink)]/60">
-                Photo locked
+                {p.photo_ready ? "Photo locked" : "Uploading..."}
               </p>
             </motion.div>
           ))}
