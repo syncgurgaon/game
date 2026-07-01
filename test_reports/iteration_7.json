@@ -1,0 +1,20 @@
+{
+  "summary": "Retest of iteration 6 blocker. FinalLeaderboard.jsx line 98 fix verified: podium className now uses heights[idx]. Component renders cleanly at status=finished with no ReferenceError. Podium heights visually correct (1st=240px center > 2nd=176px left > 3rd=128px right). Backend photo endpoint and rematch photo-clearing regression checks still pass.",
+  "tested_scope": ["frontend", "backend", "integration"],
+  "passed": [
+    "FinalLeaderboard mounts at /room/{code} when status=finished (data-testid=final-leaderboard present in DOM)",
+    "No ReferenceError / no 'podiumHeight is not defined' / no red error overlay in browser console",
+    "Podium bar heights ordered correctly: podium-1 (1st, center) = 240px > podium-2 (2nd, left) = 176px > podium-3 (3rd, right) = 128px (matches heights = ['h-44 sm:h-60','h-32 sm:h-44','h-24 sm:h-32'])",
+    "podium-1, podium-2, podium-3 testids all present in DOM",
+    "'You Won!' title + 'Game Over' badge render correctly",
+    "POST /api/rooms/{code}/photo returns 200 with valid photo",
+    "POST /api/rooms/{code}/photo returns 400 with empty photo ('Photo required')",
+    "Full lifecycle create -> join -> settings(rounds_count=1) -> start -> playing -> round_result -> finished works",
+    "POST /api/rooms/{code}/rematch returns 200 when status=finished; room reverts to status=lobby and all players' photo fields are cleared to '' as expected"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

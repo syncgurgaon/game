@@ -95,7 +95,7 @@ export default function FinalLeaderboard({ state, me, isHost }) {
               <p className="font-display uppercase mt-2 text-sm sm:text-base truncate max-w-full">{p.name}</p>
               <p className="font-display text-2xl">{p.score}</p>
               <div
-                className={`mt-2 w-full ${podiumHeight} border-4 border-[var(--ink)] shadow-[4px_4px_0_#1a1a1a] rounded-t-xl flex items-center justify-center`}
+                className={`mt-2 w-full ${heights[idx]} border-4 border-[var(--ink)] shadow-[4px_4px_0_#1a1a1a] rounded-t-xl flex items-center justify-center`}
                 style={{ background: podiumColors[idx] }}
               >
                 <span className="font-display text-2xl sm:text-3xl">{podiumLabels[idx]}</span>
