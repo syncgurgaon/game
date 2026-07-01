@@ -96,7 +96,7 @@ export default function Quiz({ state, me, myPlayer }) {
       </div>
 
       <h2 className="font-display text-3xl sm:text-4xl uppercase text-center mb-6">
-        Whose childhood is this?
+        Whose pic is this?
       </h2>
 
       {/* Polaroid */}

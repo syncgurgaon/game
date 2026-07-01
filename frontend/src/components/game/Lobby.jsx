@@ -109,16 +109,16 @@ export default function Lobby({ state, me, isHost }) {
         </span>
       </h1>
       <p className="font-body text-lg mt-4 text-[var(--ink)]/70 max-w-2xl">
-        Share the link. Everyone uploads a pic (childhood, meme, or any photo) — friends guess who uploaded it. Photos stay <span className="font-display uppercase">hidden</span> until their round!
+        Share the link. Everyone drops any pic from their phone — meme, screenshot, throwback, anything. Pics stay <span className="font-display uppercase">hidden</span> until their round!
       </p>
 
       {needsPhoto && (
         <div className="nb-card p-5 sm:p-6 mt-6 bg-[var(--c-peach)]" data-testid="reupload-card">
           <div className="flex items-center gap-2 mb-3">
             <Camera strokeWidth={3} size={20} />
-            <h3 className="font-display uppercase text-xl">Upload Your Pic</h3>
+            <h3 className="font-display uppercase text-xl">Drop Your Pic</h3>
           </div>
-          <p className="font-body text-sm mb-4">Anything goes — childhood photo, meme, screenshot. Others will guess it&apos;s you.</p>
+          <p className="font-body text-sm mb-4">Anything from your phone — meme, screenshot, throwback, chaotic selfie. The crew will guess it&apos;s you.</p>
           <PhotoUpload value={newPhoto} onChange={setNewPhoto} testId="reupload" />
           {newPhoto && (
             <button

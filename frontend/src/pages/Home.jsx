@@ -76,10 +76,10 @@ export default function Home() {
             className="font-display text-5xl sm:text-7xl md:text-8xl uppercase leading-[0.95]"
             data-testid="home-title"
           >
-            Guess The
+            Whose
             <br />
             <span className="inline-block bg-[var(--c-peach)] border-4 border-[var(--ink)] px-4 py-1 rotate-[-2deg] mt-3 shadow-[8px_8px_0_#1a1a1a]">
-              Lil' One!
+              Pic Is It?!
             </span>
           </motion.h1>
           <motion.p
@@ -88,8 +88,7 @@ export default function Home() {
             transition={{ delay: 0.3 }}
             className="font-body text-lg sm:text-xl mt-8 max-w-2xl mx-auto text-[var(--ink)]"
           >
-            Friends upload their childhood photos. A baby face appears. Four names. Tap fast.
-            Whoever spots their squad first wins the night.
+            Everyone drops a pic from their phone — a chaotic meme, a random screenshot, a childhood throwback, anything. A pic appears. Four names. Tap the culprit fast. Whoever spots their squad first wins the night.
           </motion.p>
 
           <div className="grid sm:grid-cols-2 gap-5 mt-12 max-w-2xl mx-auto">
@@ -164,7 +163,7 @@ export default function Home() {
           <p className="font-body text-base mb-6 text-[var(--ink)]/70">
             {mode === "create"
               ? "You'll be the host. Share the link after."
-              : "Hop into a friend's room and upload your baby pic."}
+              : "Hop into a friend's room and drop your pic."}
           </p>
 
           <div className="space-y-5">
@@ -193,10 +192,10 @@ export default function Home() {
               />
             </div>
             <div>
-              <label className="font-display text-sm uppercase tracking-widest block mb-2">Childhood Photo</label>
+              <label className="font-display text-sm uppercase tracking-widest block mb-2">Your Pic</label>
               <PhotoUpload value={photo} onChange={setPhoto} />
               <p className="text-xs font-body text-[var(--ink)]/60 mt-2">
-                Pick one where you look unrecognizably adorable.
+                Anything goes — a meme from your camera roll, a chaotic screenshot, a childhood throwback. Make it iconic.
               </p>
             </div>
             <button
