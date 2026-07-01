@@ -1,0 +1,18 @@
+{
+  "summary": "Frontend-only verification of join-sound bug fix. Confirmed harsh join.mp3 is effectively removed (SPA fallback returns text/html, not audio), procedural WebAudio chime code path executes cleanly with no exceptions, other SFX mp3s still serve audio/mpeg, and audio-toggle-btn works without errors.",
+  "tested_scope": ["frontend", "integration"],
+  "passed": [
+    "App loads at REACT_APP_BACKEND_URL with 0 console errors and 0 warnings",
+    "/audio/join.mp3 no longer served as audio (content-type: text/html — SPA index.html fallback); no way for harsh car-engine sound to play",
+    "/audio/correct.mp3, wrong.mp3, tick.mp3, click.mp3, win.mp3, music.mp3 all return HTTP 200 with content-type audio/mpeg (regression clean)",
+    "Code inspection: SFX_MAP in AudioContext.jsx contains no 'join' key; playSfx('join') branches to playJoinChimeWebAudio() and returns early",
+    "playJoinChimeWebAudio() logic executed in-browser via page.evaluate — AudioContext created (state=running), 3 sine oscillators (E5/G5/B5) + delay/feedback wired, no exceptions thrown; setTimeout cleanup path present",
+    "audio-toggle-btn is present with data-testid and clickable twice without throwing"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "retest_needed": false,
+  "notes": "Full audible verification of the chime tone is out of automated scope (per request). The two-player WS join flow was not exercised end-to-end (would require two contexts + room creation), but the exact code branch triggered by playSfx('join') was replicated verbatim in the browser and completed cleanly.",
+  "full_testing_deferred": true
+}
