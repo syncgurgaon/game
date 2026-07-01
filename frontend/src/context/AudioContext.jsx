@@ -33,7 +33,7 @@ export function AudioProvider({ children }) {
     // Music element
     const m = new Audio(MUSIC_URL);
     m.loop = true;
-    m.volume = 0.28;
+    m.volume = 0.14; // gentler waiting-room volume
     m.preload = "auto";
     musicRef.current = m;
     return () => {
