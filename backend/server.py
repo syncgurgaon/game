@@ -55,6 +55,10 @@ class UpdateSettingsRequest(BaseModel):
 class RematchRequest(BaseModel):
     player_id: str
 
+class UpdatePhotoRequest(BaseModel):
+    player_id: str
+    photo: str
+
 class ReactRequest(BaseModel):
     player_id: str
     emoji: str
@@ -483,6 +487,28 @@ async def _advance_after_result(code: str, round_num: int):
     if s and s["status"] == "finished":
         await persist_finished_game(code)
 
+@api_router.post("/rooms/{code}/photo")
+async def update_photo(code: str, body: UpdatePhotoRequest):
+    code = code.upper()
+    async with rooms_lock:
+        s = rooms_state.get(code)
+        if not s:
+            raise HTTPException(404, "Room not found")
+        if s["status"] != "lobby":
+            raise HTTPException(400, "Can only update photo in lobby")
+        if not body.photo:
+            raise HTTPException(400, "Photo required")
+        found = False
+        for p in s["players"]:
+            if p["id"] == body.player_id:
+                p["photo"] = body.photo
+                found = True
+                break
+        if not found:
+            raise HTTPException(404, "Player not in room")
+    await manager.broadcast(code, {"type": "state", "state": public_state(code)})
+    return {"ok": True}
+
 @api_router.post("/rooms/{code}/rematch")
 async def rematch(code: str, body: RematchRequest):
     code = code.upper()
@@ -494,9 +520,10 @@ async def rematch(code: str, body: RematchRequest):
             raise HTTPException(403, "Only host can start a rematch")
         if s["status"] != "finished":
             raise HTTPException(400, "Game must be finished first")
-        # Reset state, keep players/photos/identity
+        # Reset state, keep players identity but clear photos so everyone re-uploads
         for p in s["players"]:
             p["score"] = 0
+            p["photo"] = ""
         s["status"] = "lobby"
         s["current_round"] = 0
         s["total_rounds"] = 0

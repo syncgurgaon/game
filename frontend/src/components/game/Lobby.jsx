@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Copy, Check, Play, Users, Crown, X, Settings, EyeOff } from "lucide-react";
+import { Copy, Check, Play, Users, Crown, X, Settings, EyeOff, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import InitialAvatar from "@/components/InitialAvatar";
+import PhotoUpload from "@/components/PhotoUpload";
 
 const playerCardColors = [
   "var(--c-yellow)",
@@ -20,9 +21,29 @@ export default function Lobby({ state, me, isHost }) {
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
   const [savingSetting, setSavingSetting] = useState(false);
+  const [newPhoto, setNewPhoto] = useState("");
+  const [uploading, setUploading] = useState(false);
   const shareUrl = `${window.location.origin}/?code=${state.code}`;
   const duration = state.round_duration_s || 15;
   const roundsSetting = state.rounds_count_setting || 0; // 0 = all players
+  const myPlayer = state.players.find((p) => p.id === me.player_id);
+  const needsPhoto = myPlayer && !myPlayer.photo;
+  const pendingCount = state.players.filter((p) => !p.photo).length;
+  const canStart = state.players.length >= 2 && pendingCount === 0;
+
+  const uploadPhoto = async () => {
+    if (!newPhoto) return;
+    setUploading(true);
+    try {
+      await api.post(`/rooms/${state.code}/photo`, { player_id: me.player_id, photo: newPhoto });
+      toast.success("Photo uploaded!");
+      setNewPhoto("");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const copyLink = async () => {
     try {
@@ -88,8 +109,29 @@ export default function Lobby({ state, me, isHost }) {
         </span>
       </h1>
       <p className="font-body text-lg mt-4 text-[var(--ink)]/70 max-w-2xl">
-        Share the link below. Friends&apos; childhood pics stay <span className="font-display uppercase">hidden</span> until their round — no peeking!
+        Share the link. Everyone uploads a pic (childhood, meme, or any photo) — friends guess who uploaded it. Photos stay <span className="font-display uppercase">hidden</span> until their round!
       </p>
+
+      {needsPhoto && (
+        <div className="nb-card p-5 sm:p-6 mt-6 bg-[var(--c-peach)]" data-testid="reupload-card">
+          <div className="flex items-center gap-2 mb-3">
+            <Camera strokeWidth={3} size={20} />
+            <h3 className="font-display uppercase text-xl">Upload Your Pic</h3>
+          </div>
+          <p className="font-body text-sm mb-4">Anything goes — childhood photo, meme, screenshot. Others will guess it&apos;s you.</p>
+          <PhotoUpload value={newPhoto} onChange={setNewPhoto} testId="reupload" />
+          {newPhoto && (
+            <button
+              data-testid="reupload-submit-btn"
+              disabled={uploading}
+              onClick={uploadPhoto}
+              className="nb-btn mt-4 w-full py-3 bg-[var(--c-mint)]"
+            >
+              {uploading ? "Uploading..." : "Submit Photo"}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="nb-card p-5 sm:p-6 mt-6 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
         <code
@@ -222,7 +264,7 @@ export default function Lobby({ state, me, isHost }) {
         <div className="mt-12 text-center">
           <button
             data-testid="start-game-btn"
-            disabled={starting || state.players.length < 2}
+            disabled={starting || !canStart}
             onClick={startGame}
             className="nb-btn px-10 py-5 bg-[var(--c-peach)] text-2xl inline-flex items-center gap-3"
           >
@@ -231,6 +273,11 @@ export default function Lobby({ state, me, isHost }) {
           {state.players.length < 2 && (
             <p className="font-body text-sm mt-3 text-[var(--ink)]/60">
               Need at least 2 players to begin
+            </p>
+          )}
+          {state.players.length >= 2 && pendingCount > 0 && (
+            <p data-testid="pending-photos-msg" className="font-body text-sm mt-3 text-[var(--ink)]/60">
+              Waiting for {pendingCount} player{pendingCount > 1 ? "s" : ""} to upload a photo...
             </p>
           )}
         </div>

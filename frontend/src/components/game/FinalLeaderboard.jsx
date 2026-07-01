@@ -77,7 +77,7 @@ export default function FinalLeaderboard({ state, me, isHost }) {
         {[1, 0, 2].map((idx) => {
           const p = top3[idx];
           if (!p) return <div key={idx} />;
-          const heights = ["h-32 sm:h-44", "h-44 sm:h-60", "h-24 sm:h-32"];
+          const heights = ["h-44 sm:h-60", "h-32 sm:h-44", "h-24 sm:h-32"];
           return (
             <motion.div
               key={p.id}
@@ -95,7 +95,7 @@ export default function FinalLeaderboard({ state, me, isHost }) {
               <p className="font-display uppercase mt-2 text-sm sm:text-base truncate max-w-full">{p.name}</p>
               <p className="font-display text-2xl">{p.score}</p>
               <div
-                className={`mt-2 w-full ${heights[idx]} border-4 border-[var(--ink)] shadow-[4px_4px_0_#1a1a1a] rounded-t-xl flex items-center justify-center`}
+                className={`mt-2 w-full ${podiumHeight} border-4 border-[var(--ink)] shadow-[4px_4px_0_#1a1a1a] rounded-t-xl flex items-center justify-center`}
                 style={{ background: podiumColors[idx] }}
               >
                 <span className="font-display text-2xl sm:text-3xl">{podiumLabels[idx]}</span>

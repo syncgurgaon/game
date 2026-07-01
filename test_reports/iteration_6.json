@@ -1,0 +1,30 @@
+{
+  "summary": "Backend photo-update + rematch behaviors work correctly (400 empty photo, 404 bad room/player, 200 valid). However the FinalLeaderboard.jsx podium fix is BROKEN: a ReferenceError 'podiumHeight is not defined' crashes the entire final leaderboard for every user reaching the finished state.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "POST /api/rooms/{code}/photo returns 200 with valid photo",
+    "POST /api/rooms/{code}/photo returns 400 with empty photo",
+    "POST /api/rooms/{code}/photo returns 404 with unknown player_id",
+    "POST /api/rooms/{code}/photo returns 404 with unknown room code",
+    "POST /api/rooms/{code}/rematch returns 400 when not finished",
+    "Room create/join/start/answer/finished lifecycle reaches 'finished' with photos preserved and scores computed",
+    "Lobby copy update reference verified in source ('childhood, meme, or any photo')",
+    "Lobby reupload-card / reupload-submit-btn / pending-photos-msg testids present in Lobby.jsx source"
+  ],
+  "failed": [
+    {
+      "area": "frontend/FinalLeaderboard.jsx (line 98)",
+      "issue": "Uncaught ReferenceError: podiumHeight is not defined. The className template literal uses ${podiumHeight} but the local variable is named 'heights' (defined on line 80 as `const heights = [...]`). Every render of the podium throws inside Array.map, so the FinalLeaderboard component fails to mount and the whole /room/{code} page shows a red error overlay when status='finished'.",
+      "evidence": "Reproduced live at /room/HUO9P (status=finished, 3 players). Page shows: 'Uncaught runtime errors: podiumHeight is not defined ... at FinalLeaderboard'. Screenshot captured. data-testid=final-leaderboard NOT found in DOM.",
+      "priority": "HIGH"
+    }
+  ],
+  "action_items": [
+    "Fix FinalLeaderboard.jsx line 98: replace `${podiumHeight}` with `${heights[idx]}` so 1st (idx=0) gets 'h-44 sm:h-60', 2nd 'h-32 sm:h-44', 3rd 'h-24 sm:h-32'. This is a one-line change and is the actual target of this iteration's bug fix.",
+    "After fix, re-verify visually that podium-1 (1st, center) bar is taller than podium-2 (2nd, left) and podium-3 (3rd, right).",
+    "(Optional/known gap acknowledged in request) Backend /start does not enforce all-photos-uploaded post-rematch — frontend canStart handles it. Fine to leave for now."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "0% (final leaderboard blocked by JS crash)"},
+  "retest_needed": true,
+  "full_testing_deferred": true
+}
