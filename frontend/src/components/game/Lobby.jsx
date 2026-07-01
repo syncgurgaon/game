@@ -230,11 +230,12 @@ export default function Lobby({ state, me, isHost }) {
               key={p.id}
               data-testid={`player-card-${p.id}`}
               initial={{ scale: 0.7, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
+              animate={{ scale: 1, opacity: p.connected ? 1 : 0.5 }}
               className="nb-card p-5 flex flex-col items-center gap-3 relative"
               style={{
                 background: playerCardColors[i % playerCardColors.length],
                 transform: `rotate(${i % 2 === 0 ? -1.5 : 1.5}deg)`,
+                filter: p.connected ? "none" : "grayscale(0.6)",
               }}
             >
               {isHost && p.id !== me.player_id && (
@@ -253,8 +254,16 @@ export default function Lobby({ state, me, isHost }) {
                 <p className="font-display uppercase text-sm truncate max-w-[120px]">{p.name}</p>
               </div>
               <p className="font-body text-xs uppercase tracking-widest text-[var(--ink)]/60">
-                {p.photo_ready ? "Photo locked" : "Uploading..."}
+                {!p.connected ? "Left" : p.photo_ready ? "Photo locked" : "Uploading..."}
               </p>
+              {!p.connected && (
+                <span
+                  data-testid={`disconnected-${p.id}`}
+                  className="absolute top-2 left-2 bg-[var(--wrong)] text-white border-2 border-[var(--ink)] rounded-full px-2 py-0.5 text-[10px] font-display uppercase shadow-[2px_2px_0_#1a1a1a]"
+                >
+                  Left
+                </span>
+              )}
             </motion.div>
           ))}
         </div>
