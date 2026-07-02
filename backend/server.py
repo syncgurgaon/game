@@ -221,7 +221,7 @@ def build_question(s: dict) -> dict:
     random.shuffle(options)
     return {
         "target_player_id": target_id,
-        "photo": target["photo"],
+        "photo": target_photo,
         "options": options,
         "duration_s": s.get("round_duration_s", 15),
         "started_at": datetime.now(timezone.utc).isoformat(),

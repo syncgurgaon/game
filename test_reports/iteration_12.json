@@ -1,0 +1,20 @@
+{
+  "summary": "Iteration 12 retest: the one-line fix in build_question() (line 224 now returns target_photo) is verified — random pick from safe deck WORKS. Across 6 host-target trials with a 5-photo deck, question.photo took 4 distinct indices (0, 2, 3, 4). All round_history photos are within the target player's deck. Rematch clears round_history and photos. Frontend FinalLeaderboard renders the afterparty-zine section with most-chaotic-card and hardest-guess-card; both card <img src> match the corresponding round_history entry exactly. All iteration_11 regressions still pass.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "Backend: build_question uses target_photo (random pick from photos[]). Across 6 trials with 5-photo deck, host got photo indices [0,0,4,3,3,2] — 4 unique values seen; random selection confirmed working.",
+    "Backend: each round_history[].photo is a member of the target player's photos[] deck (verified for host and guest targets).",
+    "Backend: 2-round game runs to status=finished with round_history length == total_rounds (2), each entry has round/target_player_id/target_name/photo/correct_count/wrong_count/answered_count.",
+    "Backend: POST /api/rooms/{code}/rematch resets round_history=[] and clears photos (photo_ready=false for all players).",
+    "Frontend: after full-flow finish, [data-testid=afterparty-zine] visible; [data-testid=most-chaotic-card] and [data-testid=hardest-guess-card] visible on FinalLeaderboard.",
+    "Frontend: most-chaotic-card img src === history entry with max wrong_count (exact match).",
+    "Frontend: hardest-guess-card img src === history entry with min correct/answered ratio (exact match).",
+    "Frontend: cards render 'MOST CHAOTIC PIC' / 'HARDEST TO GUESS' headers, target name, and stat labels (2 wrong guesses, 0% guessed right)."
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "100% (of items tested)"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "The iteration_11 MEDIUM bug (random photo pick not applied) is FIXED and verified end-to-end. Zine UI cards were the only deferred item from iteration_11 — now verified. Screenshot images render blank only because test seeds fake base64 strings (not real PNGs); the src attributes are propagated correctly."
+}
