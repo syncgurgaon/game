@@ -1,10 +1,10 @@
 import { motion } from "framer-motion";
-import { Trophy, Home, RotateCcw, Download, Zap, Brain } from "lucide-react";
+import { Trophy, Home, RotateCcw, Download, Zap, Brain, Share2, Copy, Link } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { generateShareCard } from "@/lib/shareCard";
+import { generateShareCard, generateStoryCard } from "@/lib/shareCard";
 import { haptic } from "@/lib/haptic";
 
 const podiumColors = ["var(--c-yellow)", "var(--c-lavender)", "var(--c-peach)"];
@@ -13,6 +13,7 @@ const podiumLabels = ["1st", "2nd", "3rd"];
 export default function FinalLeaderboard({ state, me, isHost }) {
   const navigate = useNavigate();
   const [rematching, setRematching] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const sorted = [...state.players].sort((a, b) => b.score - a.score);
   const top3 = sorted.slice(0, 3);
   const rest = sorted.slice(3);
@@ -66,6 +67,64 @@ export default function FinalLeaderboard({ state, me, isHost }) {
       toast.success("Card downloaded! Share it 📲");
     } catch (err) {
       toast.error("Couldn't generate card");
+    }
+  };
+
+  const appUrl = window.location.origin;
+
+  const shareToInsta = async () => {
+    haptic("medium");
+    setSharing(true);
+    try {
+      // Generate the story-sized card
+      const blob = await generateStoryCard(state, state.code);
+      if (!blob) throw new Error("Could not generate story image");
+
+      const file = new File([blob], `whose-pic-${state.code}.png`, { type: "image/png" });
+
+      // Try native Web Share API (works on mobile — lets user pick Instagram)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "Whose Pic Is It?!",
+          text: `I just played Whose Pic Is It?! 🎮🔥 Play with your crew: ${appUrl}`,
+        });
+        toast.success("Shared! 🎉");
+      } else {
+        // Desktop fallback: download image + copy link
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `whose-pic-${state.code}-story.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+        // Also copy the app link
+        try {
+          await navigator.clipboard.writeText(`I just played Whose Pic Is It?! 🎮🔥 Play with your crew: ${appUrl}`);
+          toast.success("Story card downloaded & link copied! Paste in your Instagram story ✨");
+        } catch {
+          toast.success("Story card downloaded! Share it on Instagram 📲");
+        }
+      }
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        toast.error("Couldn't share — try downloading instead");
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const copyLink = async () => {
+    haptic("light");
+    try {
+      await navigator.clipboard.writeText(`Play Whose Pic Is It?! with me 🎮 ${appUrl}`);
+      toast.success("Link copied! 📋");
+    } catch {
+      toast.error("Couldn't copy link");
     }
   };
 
@@ -172,11 +231,27 @@ export default function FinalLeaderboard({ state, me, isHost }) {
 
       <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12 flex-wrap">
         <button
+          data-testid="share-insta-btn"
+          onClick={shareToInsta}
+          disabled={sharing}
+          className="nb-btn px-6 py-4 text-white inline-flex items-center justify-center gap-2"
+          style={{ background: "linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)" }}
+        >
+          <Share2 strokeWidth={3} /> {sharing ? "Generating..." : "Share on Insta"}
+        </button>
+        <button
+          data-testid="copy-link-btn"
+          onClick={copyLink}
+          className="nb-btn px-6 py-4 bg-[var(--c-sky)] inline-flex items-center justify-center gap-2"
+        >
+          <Link strokeWidth={3} /> Copy Game Link
+        </button>
+        <button
           data-testid="download-card-btn"
           onClick={downloadCard}
           className="nb-btn px-6 py-4 bg-[var(--c-lavender)] inline-flex items-center justify-center gap-2"
         >
-          <Download strokeWidth={3} /> Download Share Card
+          <Download strokeWidth={3} /> Download Card
         </button>
         {isHost ? (
           <button
@@ -185,7 +260,7 @@ export default function FinalLeaderboard({ state, me, isHost }) {
             disabled={rematching}
             className="nb-btn px-6 py-4 bg-[var(--c-mint)] inline-flex items-center justify-center gap-2"
           >
-            <RotateCcw strokeWidth={3} /> {rematching ? "Restarting..." : "Play Again, Same Crew"}
+            <RotateCcw strokeWidth={3} /> {rematching ? "Restarting..." : "Play Again"}
           </button>
         ) : (
           <div
