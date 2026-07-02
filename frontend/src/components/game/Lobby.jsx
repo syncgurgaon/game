@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Copy, Check, Play, Users, Crown, X, Settings, EyeOff, Camera } from "lucide-react";
+import { Copy, Check, Play, Users, Crown, X, Settings, EyeOff, Camera, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import InitialAvatar from "@/components/InitialAvatar";
-import PhotoUpload from "@/components/PhotoUpload";
+import PhotoDeck from "@/components/PhotoDeck";
 
 const playerCardColors = [
   "var(--c-yellow)",
@@ -21,7 +21,7 @@ export default function Lobby({ state, me, isHost }) {
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
   const [savingSetting, setSavingSetting] = useState(false);
-  const [newPhoto, setNewPhoto] = useState("");
+  const [newPhoto, setNewPhoto] = useState([]);
   const [uploading, setUploading] = useState(false);
   const shareUrl = `${window.location.origin}/?code=${state.code}`;
   const duration = state.round_duration_s || 15;
@@ -32,12 +32,12 @@ export default function Lobby({ state, me, isHost }) {
   const canStart = state.players.length >= 2 && pendingCount === 0;
 
   const uploadPhoto = async () => {
-    if (!newPhoto) return;
+    if (!newPhoto || newPhoto.length === 0) return;
     setUploading(true);
     try {
-      await api.post(`/rooms/${state.code}/photo`, { player_id: me.player_id, photo: newPhoto });
-      toast.success("Photo uploaded!");
-      setNewPhoto("");
+      await api.post(`/rooms/${state.code}/photo`, { player_id: me.player_id, photos: newPhoto });
+      toast.success("Deck uploaded!");
+      setNewPhoto([]);
     } catch (err) {
       toast.error(err.response?.data?.detail || "Upload failed");
     } finally {
@@ -118,16 +118,16 @@ export default function Lobby({ state, me, isHost }) {
             <Camera strokeWidth={3} size={20} />
             <h3 className="font-display uppercase text-xl">Drop Your Pic</h3>
           </div>
-          <p className="font-body text-sm mb-4">Anything from your phone — meme, screenshot, throwback, chaotic selfie. The crew will guess it&apos;s you.</p>
-          <PhotoUpload value={newPhoto} onChange={setNewPhoto} testId="reupload" />
-          {newPhoto && (
+          <p className="font-body text-sm mb-4">Drop 1-10 pics — screenshots, memes, throwbacks, anything. The game randomly picks <span className="font-display uppercase">one</span> for your round.</p>
+          <PhotoDeck value={newPhoto} onChange={setNewPhoto} max={10} testId="reupload-deck" />
+          {newPhoto.length > 0 && (
             <button
               data-testid="reupload-submit-btn"
               disabled={uploading}
               onClick={uploadPhoto}
               className="nb-btn mt-4 w-full py-3 bg-[var(--c-mint)]"
             >
-              {uploading ? "Uploading..." : "Submit Photo"}
+              {uploading ? "Uploading..." : `Submit Deck (${newPhoto.length})`}
             </button>
           )}
         </div>
@@ -149,6 +149,23 @@ export default function Lobby({ state, me, isHost }) {
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
+
+      {/* Shared time-capsule prompt — identical for everyone in the room */}
+      {state.prompt && (
+        <div className="nb-card p-5 sm:p-6 mt-6 bg-[var(--c-yellow)]" data-testid="lobby-prompt-card">
+          <div className="flex items-start gap-3">
+            <Sparkles size={22} strokeWidth={3} className="mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-display text-[11px] uppercase tracking-widest text-[var(--ink)]/70">
+                Everyone&apos;s Time Capsule Prompt
+              </p>
+              <p className="font-display text-xl sm:text-2xl mt-1" data-testid="lobby-prompt-text">
+                {state.prompt}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Host Settings */}
       {isHost && (
