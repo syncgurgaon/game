@@ -156,7 +156,7 @@ export default function Room() {
   const myPlayer = state.players.find((p) => p.id === me.player_id);
 
   return (
-    <div className="min-h-screen px-4 py-8 max-w-5xl mx-auto" data-testid="room-page">
+    <div className="min-h-screen px-4 py-8 max-w-5xl mx-auto relative z-10" data-testid="room-page">
       <FloatingReactions items={reactions} />
       {connStatus === "reconnecting" && (
         <div

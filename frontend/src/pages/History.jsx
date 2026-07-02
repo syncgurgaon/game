@@ -38,7 +38,7 @@ export default function History() {
   }, [games, filter]);
 
   return (
-    <div className="min-h-screen px-4 py-10 max-w-4xl mx-auto" data-testid="history-page">
+    <div className="min-h-screen px-4 py-10 max-w-4xl mx-auto relative z-10" data-testid="history-page">
       <Link to="/" data-testid="history-back-btn" className="font-body text-sm uppercase tracking-widest inline-flex items-center gap-2 mb-6 hover:underline">
         <ArrowLeft size={16} strokeWidth={3} /> Back
       </Link>

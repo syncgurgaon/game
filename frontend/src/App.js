@@ -6,11 +6,13 @@ import Room from "@/pages/Room";
 import History from "@/pages/History";
 import { AudioProvider } from "@/context/AudioContext";
 import AudioToggle from "@/components/AudioToggle";
+import Background3D from "@/components/Background3D";
 
 function App() {
   return (
     <AudioProvider>
       <div className="App min-h-screen">
+        <Background3D />
         <BrowserRouter>
           <AudioToggle />
           <Routes>

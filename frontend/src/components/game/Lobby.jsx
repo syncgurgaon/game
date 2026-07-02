@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Copy, Check, Play, Users, Crown, X, Settings, EyeOff, Camera } from "lucide-react";
+import { Copy, Check, Play, Users, Crown, X, Settings, EyeOff, Camera, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import InitialAvatar from "@/components/InitialAvatar";
@@ -149,6 +149,23 @@ export default function Lobby({ state, me, isHost }) {
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
+
+      {/* Shared time-capsule prompt — identical for everyone in the room */}
+      {state.prompt && (
+        <div className="nb-card p-5 sm:p-6 mt-6 bg-[var(--c-yellow)]" data-testid="lobby-prompt-card">
+          <div className="flex items-start gap-3">
+            <Sparkles size={22} strokeWidth={3} className="mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-display text-[11px] uppercase tracking-widest text-[var(--ink)]/70">
+                Everyone&apos;s Time Capsule Prompt
+              </p>
+              <p className="font-display text-xl sm:text-2xl mt-1" data-testid="lobby-prompt-text">
+                {state.prompt}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Host Settings */}
       {isHost && (

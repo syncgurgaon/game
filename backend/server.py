@@ -39,6 +39,7 @@ class CreateRoomRequest(BaseModel):
     name: str
     photo: Optional[str] = None
     photos: Optional[List[str]] = None
+    prompt: Optional[str] = None  # host-chosen time-capsule prompt; shared by everyone in the room
 
 class JoinRoomRequest(BaseModel):
     name: str
@@ -123,6 +124,19 @@ DUMMY_NAMES = [
     "Casey Nguyen", "Morgan Diaz", "Quinn Smith", "Avery Park"
 ]
 
+# Fallback time-capsule prompts. The client normally sends the host-chosen prompt,
+# but if it's missing we pick one here so the whole room still shares a single prompt.
+TIME_CAPSULE_PROMPTS = [
+    "A core memory that lives in your head rent-free",
+    "An unhinged 3AM screenshot",
+    "That one blurry photo you refuse to delete",
+    "The most cursed selfie on your camera roll",
+    "The last meme you sent that made you cackle",
+    "The most chaotic pic from a group chat",
+    "Something in your camera roll you can't explain",
+    "A photo you took by accident that slaps",
+]
+
 def _normalize_photos(photo: Optional[str], photos: Optional[List[str]]) -> List[str]:
     if photos:
         return [p for p in photos if p][:10]
@@ -190,6 +204,7 @@ def public_state(code: str, hide_answer: bool = True) -> dict:
         "code": s["code"],
         "status": s["status"],
         "host_id": s["host_id"],
+        "prompt": s.get("prompt", ""),
         "players": players,
         "current_round": s["current_round"],
         "total_rounds": s["total_rounds"],
@@ -300,9 +315,11 @@ async def create_room(body: CreateRoomRequest):
         while code in rooms_state:
             code = gen_code()
         host = Player(name=body.name.strip()[:30], photo=photos[0], photos=photos, is_host=True)
+        prompt = (body.prompt or "").strip()[:200] or random.choice(TIME_CAPSULE_PROMPTS)
         rooms_state[code] = {
             "code": code,
             "host_id": host.id,
+            "prompt": prompt,  # single time-capsule prompt shared by everyone in the room
             "status": "lobby",
             "players": [host.model_dump()],
             "current_round": 0,
@@ -317,7 +334,7 @@ async def create_room(body: CreateRoomRequest):
         }
     # persist minimal record
     await db.rooms.insert_one({"code": code, "created_at": rooms_state[code]["created_at"]})
-    return {"code": code, "player_id": host.id, "is_host": True}
+    return {"code": code, "player_id": host.id, "is_host": True, "prompt": prompt}
 
 @api_router.post("/rooms/{code}/join")
 async def join_room(code: str, body: JoinRoomRequest):
@@ -337,8 +354,9 @@ async def join_room(code: str, body: JoinRoomRequest):
             raise HTTPException(400, "Room is full (max 12 players)")
         player = Player(name=body.name.strip()[:30], photo=photos[0], photos=photos, is_host=False)
         s["players"].append(player.model_dump())
+        prompt = s.get("prompt", "")
     await manager.broadcast(code, {"type": "state", "state": public_state(code)})
-    return {"code": code, "player_id": player.id, "is_host": False}
+    return {"code": code, "player_id": player.id, "is_host": False, "prompt": prompt}
 
 @api_router.get("/rooms/{code}")
 async def get_room(code: str):

@@ -20,12 +20,37 @@ export default function Home() {
   const [code, setCode] = useState(initialCode);
   const [submitting, setSubmitting] = useState(false);
   const [prompt, setPrompt] = useState(() => randomPrompt());
+  const [promptLoading, setPromptLoading] = useState(false);
   const { playSfx } = useAudio();
 
   useEffect(() => {
     if (!mode) setPrompt(randomPrompt(prompt));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
+
+  // When joining, the time-capsule prompt is fixed by the room — everyone sees the same one.
+  // Fetch the host's prompt once the code looks complete.
+  useEffect(() => {
+    if (mode !== "join") return;
+    const normCode = code.trim().toUpperCase();
+    if (normCode.length < 5) return;
+    let cancelled = false;
+    setPromptLoading(true);
+    api
+      .get(`/rooms/${normCode}`)
+      .then((res) => {
+        if (!cancelled && res.data?.prompt) setPrompt(res.data.prompt);
+      })
+      .catch(() => {
+        /* invalid/unknown code — keep placeholder, join will surface the error */
+      })
+      .finally(() => {
+        if (!cancelled) setPromptLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, code]);
 
   const handleCreate = async () => {
     if (!name.trim() || photos.length === 0) {
@@ -34,7 +59,7 @@ export default function Home() {
     }
     setSubmitting(true);
     try {
-      const res = await api.post("/rooms", { name: name.trim(), photos });
+      const res = await api.post("/rooms", { name: name.trim(), photos, prompt });
       sessionStorage.setItem(`room_${res.data.code}`, JSON.stringify(res.data));
       playSfx("join");
       navigate(`/room/${res.data.code}`);
@@ -63,7 +88,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen px-4 py-10 sm:py-16 max-w-5xl mx-auto" data-testid="home-page">
+    <div className="min-h-screen px-4 py-10 sm:py-16 max-w-5xl mx-auto relative z-10" data-testid="home-page">
       {/* Hero */}
       {!mode && (
         <div className="text-center">
@@ -204,17 +229,28 @@ export default function Home() {
                 <div className="flex items-start gap-2">
                   <Sparkles size={18} strokeWidth={3} className="mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
-                    <p className="font-display text-[10px] uppercase tracking-widest text-[var(--ink)]/70">Time Capsule Prompt</p>
-                    <p className="font-body font-bold text-base mt-1" data-testid="prompt-text">{prompt}</p>
+                    <p className="font-display text-[10px] uppercase tracking-widest text-[var(--ink)]/70">
+                      Time Capsule Prompt
+                    </p>
+                    <p className="font-body font-bold text-base mt-1" data-testid="prompt-text">
+                      {mode === "join" && promptLoading ? "Loading the room's prompt…" : prompt}
+                    </p>
+                    <p className="font-body text-[11px] mt-1 text-[var(--ink)]/60">
+                      {mode === "create"
+                        ? "Shuffle to set the prompt — everyone in your room gets this one."
+                        : "Set by the host — the same for everyone in this room."}
+                    </p>
                   </div>
-                  <button
-                    type="button"
-                    data-testid="prompt-shuffle-btn"
-                    onClick={() => setPrompt(randomPrompt(prompt))}
-                    className="nb-btn px-2 py-1 bg-[var(--bg-paper)] text-xs flex items-center gap-1"
-                  >
-                    <Shuffle size={12} strokeWidth={3} />
-                  </button>
+                  {mode === "create" && (
+                    <button
+                      type="button"
+                      data-testid="prompt-shuffle-btn"
+                      onClick={() => setPrompt(randomPrompt(prompt))}
+                      className="nb-btn px-2 py-1 bg-[var(--bg-paper)] text-xs flex items-center gap-1"
+                    >
+                      <Shuffle size={12} strokeWidth={3} />
+                    </button>
+                  )}
                 </div>
               </div>
               <PhotoDeck value={photos} onChange={setPhotos} max={10} testId="photo-deck" />
