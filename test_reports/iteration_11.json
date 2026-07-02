@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 11 smoke test: backend + frontend for Safe Deck, Time Capsule Prompts, and Afterparty Zine (round_history). Backend endpoints for multi-photo create/join/update work with both legacy `photo` and new `photos` array, validation returns 400 correctly, and round_history is populated at finish with length == total_rounds. Rematch clears round_history and photos. Frontend Home shows prompt-card + prompt-text + prompt-shuffle-btn (prompt changes on shuffle AND across mount cycles), PhotoDeck trigger/grid/items/add-more/remove all render and multi-image upload works. Found one BUG: server-side random photo pick from safe deck is not applied — build_question computes target_photo via _pick_player_photo() but never uses it; it returns target['photo'] (always photos[0]).",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "POST /api/rooms with `photos` array (multi) => 200",
+    "POST /api/rooms with legacy `photo` string => 200",
+    "POST /api/rooms with neither photo nor photos => 400 'Name and at least one photo required'",
+    "POST /api/rooms with empty photos [] => 400",
+    "POST /api/rooms/{code}/photo with photos=[] => 400 'Photo required'",
+    "POST /api/rooms/{code}/photo with photos array => 200 ok",
+    "POST /api/rooms/{code}/photo with legacy photo => 200 ok (backwards compat)",
+    "photo_ready=true when either photos or photo is set",
+    "GET /api/rooms/{code} after 2-round game shows status=finished with round_history length == total_rounds (2), each entry has round/target_player_id/target_name/photo/correct_count/wrong_count/answered_count",
+    "POST /api/rooms/{code}/rematch clears round_history to [] and photos for all players (photo_ready flips to false)",
+    "Home CREATE ROOM form: data-testid=prompt-card, prompt-text, prompt-shuffle-btn all present",
+    "Prompt text changes when shuffle clicked",
+    "Prompt text changes across mount cycles (back to home, re-enter CREATE)",
+    "PhotoDeck: photo-deck-trigger visible; after upload, photo-deck-grid + item-0 + item-1 + add-more render",
+    "photo-deck-remove-0 removes item; grid updates to remaining count"
+  ],
+  "failed": [
+    {
+      "area": "backend / safe-deck random pick",
+      "issue": "Random per-round photo selection from player's safe deck is NOT taking effect. build_question() at backend/server.py line 206 computes `target_photo = _pick_player_photo(target)` but line 224 returns `target['photo']` (always photos[0], set at create/join). So question.photo is always the FIRST photo of the deck, never a random pick from photos[].",
+      "evidence": "backend/server.py:203-228 — variable target_photo is unused; return dict uses target['photo']. Manually observed in 2-round game: question.photo == photos[0] for both rounds.",
+      "priority": "MEDIUM"
+    }
+  ],
+  "action_items": [
+    "Fix build_question() in backend/server.py: change `\"photo\": target[\"photo\"]` to `\"photo\": target_photo` (the already-computed random pick). Also verify _snapshot_round persists the same picked photo (it uses q['photo'] so will follow automatically)."
+  ],
+  "success_rate": {"backend": "95%", "frontend": "100% (of items tested)"},
+  "retest_needed": true,
+  "full_testing_deferred": true,
+  "notes": "Did not exercise FinalLeaderboard afterparty-zine UI (most-chaotic-card / hardest-guess-card) nor Lobby reupload-deck-trigger via UI end-to-end; backend round_history data (source for the zine) is verified. Full testing agent should validate these UI cards after backend fix."
+}

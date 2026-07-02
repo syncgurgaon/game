@@ -29,18 +29,21 @@ api_router = APIRouter(prefix="/api")
 class Player(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
-    photo: str  # base64 data URL
+    photo: str = ""  # legacy: single photo (still supported)
+    photos: List[str] = Field(default_factory=list)  # safe deck: pool of pics
     score: int = 0
     is_host: bool = False
     connected: bool = True
 
 class CreateRoomRequest(BaseModel):
     name: str
-    photo: str
+    photo: Optional[str] = None
+    photos: Optional[List[str]] = None
 
 class JoinRoomRequest(BaseModel):
     name: str
-    photo: str
+    photo: Optional[str] = None
+    photos: Optional[List[str]] = None
 
 class SubmitAnswerRequest(BaseModel):
     player_id: str
@@ -57,7 +60,8 @@ class RematchRequest(BaseModel):
 
 class UpdatePhotoRequest(BaseModel):
     player_id: str
-    photo: str
+    photo: Optional[str] = None
+    photos: Optional[List[str]] = None
 
 class ReactRequest(BaseModel):
     player_id: str
@@ -119,6 +123,37 @@ DUMMY_NAMES = [
     "Casey Nguyen", "Morgan Diaz", "Quinn Smith", "Avery Park"
 ]
 
+def _normalize_photos(photo: Optional[str], photos: Optional[List[str]]) -> List[str]:
+    if photos:
+        return [p for p in photos if p][:10]
+    if photo:
+        return [photo]
+    return []
+
+def _pick_player_photo(player: dict) -> str:
+    pool = player.get("photos") or ([player["photo"]] if player.get("photo") else [])
+    return random.choice(pool) if pool else ""
+
+def _snapshot_round(s: dict) -> None:
+    """Capture stats for the round that just ended, for the Afterparty Zine."""
+    q = s.get("current_question")
+    if not q:
+        return
+    target_id = q["target_player_id"]
+    target = next((p for p in s["players"] if p["id"] == target_id), None)
+    answers = s.get("round_answers", {})
+    correct_count = sum(1 for a in answers.values() if a.get("correct"))
+    wrong_count = sum(1 for a in answers.values() if not a.get("correct"))
+    s.setdefault("round_history", []).append({
+        "round": s["current_round"],
+        "target_player_id": target_id,
+        "target_name": target["name"] if target else "?",
+        "photo": q["photo"],
+        "correct_count": correct_count,
+        "wrong_count": wrong_count,
+        "answered_count": len(answers),
+    })
+
 def public_state(code: str, hide_answer: bool = True) -> dict:
     s = rooms_state.get(code)
     if not s:
@@ -131,7 +166,7 @@ def public_state(code: str, hide_answer: bool = True) -> dict:
             "id": p["id"],
             "name": p["name"],
             "photo": p["photo"] if show_photos else "",
-            "photo_ready": bool(p["photo"]),
+            "photo_ready": bool(p.get("photos")) or bool(p.get("photo")),
             "score": p["score"],
             "is_host": p["is_host"],
             "connected": p["connected"],
@@ -162,11 +197,13 @@ def public_state(code: str, hide_answer: bool = True) -> dict:
         "rounds_count_setting": s.get("rounds_count_setting", 0),
         "question": public_q,
         "round_answers": s.get("round_answers", {}) if s["status"] in ("round_result", "finished") else {},
+        "round_history": s.get("round_history", []) if s["status"] == "finished" else [],
     }
 
 def build_question(s: dict) -> dict:
     target_id = s["round_order"][s["current_round"] - 1]
     target = next(p for p in s["players"] if p["id"] == target_id)
+    target_photo = _pick_player_photo(target)
     # 3 distractors: other player names, fallback to dummies
     other_names = [p["name"] for p in s["players"] if p["id"] != target_id]
     random.shuffle(other_names)
@@ -215,6 +252,7 @@ async def end_round_after_delay(code: str, round_num: int, delay_s: int):
         if not s or s["current_round"] != round_num or s["status"] != "playing":
             return
         s["status"] = "round_result"
+        _snapshot_round(s)
     await manager.broadcast(code, {"type": "state", "state": public_state(code, hide_answer=False)})
     # Auto advance after 5s
     await asyncio.sleep(5)
@@ -254,13 +292,14 @@ async def root():
 
 @api_router.post("/rooms")
 async def create_room(body: CreateRoomRequest):
-    if not body.name.strip() or not body.photo:
-        raise HTTPException(400, "Name and photo required")
+    photos = _normalize_photos(body.photo, body.photos)
+    if not body.name.strip() or not photos:
+        raise HTTPException(400, "Name and at least one photo required")
     async with rooms_lock:
         code = gen_code()
         while code in rooms_state:
             code = gen_code()
-        host = Player(name=body.name.strip()[:30], photo=body.photo, is_host=True)
+        host = Player(name=body.name.strip()[:30], photo=photos[0], photos=photos, is_host=True)
         rooms_state[code] = {
             "code": code,
             "host_id": host.id,
@@ -271,8 +310,9 @@ async def create_room(body: CreateRoomRequest):
             "round_order": [],
             "current_question": None,
             "round_answers": {},
+            "round_history": [],  # list of {round, target_player_id, target_name, correct_count, wrong_count, photo}
             "round_duration_s": 15,
-            "rounds_count_setting": 0,  # 0 = use all players
+            "rounds_count_setting": 0,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
     # persist minimal record
@@ -282,8 +322,9 @@ async def create_room(body: CreateRoomRequest):
 @api_router.post("/rooms/{code}/join")
 async def join_room(code: str, body: JoinRoomRequest):
     code = code.upper()
-    if not body.name.strip() or not body.photo:
-        raise HTTPException(400, "Name and photo required")
+    photos = _normalize_photos(body.photo, body.photos)
+    if not body.name.strip() or not photos:
+        raise HTTPException(400, "Name and at least one photo required")
     async with rooms_lock:
         s = rooms_state.get(code)
         if not s:
@@ -294,7 +335,7 @@ async def join_room(code: str, body: JoinRoomRequest):
             raise HTTPException(400, "Name already taken in this room")
         if len(s["players"]) >= 12:
             raise HTTPException(400, "Room is full (max 12 players)")
-        player = Player(name=body.name.strip()[:30], photo=body.photo, is_host=False)
+        player = Player(name=body.name.strip()[:30], photo=photos[0], photos=photos, is_host=False)
         s["players"].append(player.model_dump())
     await manager.broadcast(code, {"type": "state", "state": public_state(code)})
     return {"code": code, "player_id": player.id, "is_host": False}
@@ -372,6 +413,7 @@ async def submit_answer(code: str, body: SubmitAnswerRequest):
             s2 = rooms_state.get(code)
             if s2 and s2["status"] == "playing":
                 s2["status"] = "round_result"
+                _snapshot_round(s2)
                 round_num_now = s2["current_round"]
         await manager.broadcast(code, {"type": "state", "state": public_state(code, hide_answer=False)})
         asyncio.create_task(_advance_after_result(code, round_num_now))
@@ -491,18 +533,20 @@ async def _advance_after_result(code: str, round_num: int):
 @api_router.post("/rooms/{code}/photo")
 async def update_photo(code: str, body: UpdatePhotoRequest):
     code = code.upper()
+    photos = _normalize_photos(body.photo, body.photos)
     async with rooms_lock:
         s = rooms_state.get(code)
         if not s:
             raise HTTPException(404, "Room not found")
         if s["status"] != "lobby":
             raise HTTPException(400, "Can only update photo in lobby")
-        if not body.photo:
+        if not photos:
             raise HTTPException(400, "Photo required")
         found = False
         for p in s["players"]:
             if p["id"] == body.player_id:
-                p["photo"] = body.photo
+                p["photo"] = photos[0]
+                p["photos"] = photos
                 found = True
                 break
         if not found:
@@ -521,16 +565,18 @@ async def rematch(code: str, body: RematchRequest):
             raise HTTPException(403, "Only host can start a rematch")
         if s["status"] != "finished":
             raise HTTPException(400, "Game must be finished first")
-        # Reset state, keep players identity but clear photos so everyone re-uploads
+        # Reset state, keep players identity but clear photo pools so everyone re-drops
         for p in s["players"]:
             p["score"] = 0
             p["photo"] = ""
+            p["photos"] = []
         s["status"] = "lobby"
         s["current_round"] = 0
         s["total_rounds"] = 0
         s["round_order"] = []
         s["current_question"] = None
         s["round_answers"] = {}
+        s["round_history"] = []
     await manager.broadcast(code, {"type": "state", "state": public_state(code)})
     return {"ok": True}
 
