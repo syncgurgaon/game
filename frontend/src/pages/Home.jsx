@@ -20,6 +20,7 @@ export default function Home() {
   const [code, setCode] = useState(initialCode);
   const [submitting, setSubmitting] = useState(false);
   const [prompt, setPrompt] = useState(() => randomPrompt());
+  const [fetchedPrompt, setFetchedPrompt] = useState(null);
   const [promptLoading, setPromptLoading] = useState(false);
   const { playSfx } = useAudio();
 
@@ -33,16 +34,22 @@ export default function Home() {
   useEffect(() => {
     if (mode !== "join") return;
     const normCode = code.trim().toUpperCase();
-    if (normCode.length < 5) return;
+    if (normCode.length < 5) {
+      setFetchedPrompt(null);
+      return;
+    }
     let cancelled = false;
     setPromptLoading(true);
     api
       .get(`/rooms/${normCode}`)
       .then((res) => {
-        if (!cancelled && res.data?.prompt) setPrompt(res.data.prompt);
+        if (!cancelled && res.data?.prompt) {
+          setFetchedPrompt(res.data.prompt);
+          setPrompt(res.data.prompt); // keep it synced for submission
+        }
       })
       .catch(() => {
-        /* invalid/unknown code — keep placeholder, join will surface the error */
+        if (!cancelled) setFetchedPrompt(null);
       })
       .finally(() => {
         if (!cancelled) setPromptLoading(false);
@@ -76,6 +83,7 @@ export default function Home() {
     if (!name.trim() || photos.length === 0) return toast.error("Please enter your name and add at least one pic");
     setSubmitting(true);
     try {
+      // Pass the fetched prompt along if available, though backend ignores it on join
       const res = await api.post(`/rooms/${normCode}/join`, { name: name.trim(), photos });
       sessionStorage.setItem(`room_${res.data.code}`, JSON.stringify(res.data));
       playSfx("join");
@@ -207,8 +215,8 @@ export default function Home() {
                   className="nb-input uppercase tracking-widest"
                   placeholder="ABC12"
                   value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 6))}
-                  maxLength={6}
+                  onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 5))}
+                  maxLength={5}
                 />
               </div>
             )}
@@ -233,7 +241,9 @@ export default function Home() {
                       Time Capsule Prompt
                     </p>
                     <p className="font-body font-bold text-base mt-1" data-testid="prompt-text">
-                      {mode === "join" && promptLoading ? "Loading the room's prompt…" : prompt}
+                      {mode === "join"
+                        ? (promptLoading ? "Loading the host's prompt…" : (fetchedPrompt || "Enter room code to reveal prompt..."))
+                        : prompt}
                     </p>
                     <p className="font-body text-[11px] mt-1 text-[var(--ink)]/60">
                       {mode === "create"
