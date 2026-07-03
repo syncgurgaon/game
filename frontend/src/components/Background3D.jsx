@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Float, Outlines, Text3D, Center } from "@react-three/drei";
+import { Float, Environment, Html } from "@react-three/drei";
 import * as THREE from "three";
 
 /**
- * WebGL Background - NEO-BRUTALIST VIBE
+ * WebGL Background - HIGH-FIDELITY "FLOATING MEMORIES"
  *
  * Architecture:
  * - Layer 1 & 2 (CSS): Warm animated gradient and ambient blobs (free for GPU).
- * - Layer 3 (WebGL): Neo-brutalist 3D shapes (blocks, polaroids, stars) with
- *   thick black outlines (Hull technique) and flat shading for buttery smoothness.
+ * - Layer 3 (WebGL): High-end `MeshPhysicalMaterial` glass polaroids and 
+ *   native device emojis floating in 3D space (`<Html transform>`).
  *
  * Animations:
- * - Playful "jitter" rotation (stop-motion feel) to match the brutalist aesthetic.
- * - Strict Scroll Freeze: The WebGL loop pauses entirely during scroll.
+ * - Deep, smooth ocean-like drifting to evoke nostalgia and memory.
+ * - Strict Scroll Freeze: The WebGL loop pauses entirely during scroll to 
+ *   guarantee native scroll performance on mobile.
  */
 
 /* ─── Shared Base Layers (Pure CSS) ─── */
@@ -40,6 +41,12 @@ function ensureStyles() {
       25%      { transform: translate(30px, -20px) scale(1.05); }
       50%      { transform: translate(-20px, 15px) scale(0.95); }
       75%      { transform: translate(15px, 25px) scale(1.02); }
+    }
+    .floating-emoji {
+      font-size: 4rem;
+      user-select: none;
+      pointer-events: none;
+      filter: drop-shadow(0px 10px 20px rgba(0,0,0,0.15));
     }
   `;
   document.head.appendChild(style);
@@ -79,101 +86,71 @@ function BaseLayers() {
   );
 }
 
-/* ─── WebGL Scene Elements (Neo-Brutalist) ─── */
+/* ─── High Fidelity WebGL Scene Elements ─── */
 
 const SHAPE_DATA = [
-  { type: "polaroid", position: [-4, 3, -2], color: "#ffe873", scale: 1.2, rot: [0.5, 0.2, 0.1] },
-  { type: "block", position: [4, 2, -1], color: "#7bf1a8", scale: 1.0, rot: [-0.2, 0.8, 0] },
-  { type: "star", position: [-3, -2, 1], color: "#b4a2fe", scale: 0.9, rot: [0, 0.5, -0.3] },
-  { type: "polaroid", position: [5, -3, -3], color: "#ff8a5b", scale: 1.4, rot: [0.3, -0.4, 0.5] },
-  { type: "block", position: [0, 4, -4], color: "#a8dcff", scale: 0.8, rot: [0.1, 0.1, 0.1] },
-  { type: "star", position: [2, 0, 2], color: "#ffb3c7", scale: 0.7, rot: [-0.5, -0.1, 0.8] },
-  { type: "block", position: [-2, -4, -1], color: "#7bf1a8", scale: 1.1, rot: [0.6, 0.2, -0.2] },
+  { type: "frame", position: [-4, 3, -2], color: "#ffe873", scale: 1.2, rot: [0.5, 0.2, 0.1] },
+  { type: "emoji", content: "🤔", position: [4, 2, -1], scale: 1.5, rot: [-0.2, 0.8, 0] },
+  { type: "emoji", content: "📸", position: [-3, -2, 1], scale: 1.2, rot: [0, 0.5, -0.3] },
+  { type: "frame", position: [5, -3, -3], color: "#ff8a5b", scale: 1.4, rot: [0.3, -0.4, 0.5] },
+  { type: "emoji", content: "😂", position: [0, 4, -4], scale: 1.0, rot: [0.1, 0.1, 0.1] },
+  { type: "emoji", content: "🖼️", position: [2, 0, 2], scale: 1.3, rot: [-0.5, -0.1, 0.8] },
+  { type: "frame", position: [-2, -4, -1], color: "#7bf1a8", scale: 1.1, rot: [0.6, 0.2, -0.2] },
 ];
 
-const OUTLINE_THICKNESS = 0.04;
-const OUTLINE_COLOR = "#1a1a1a";
+function FloatingMemories() {
+  // High-fidelity frosted glass material
+  const glassMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
+    roughness: 0.15,
+    transmission: 0.9, // Glass-like transparency
+    thickness: 1.5,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.1,
+    ior: 1.5,
+  }), []);
 
-// A custom jitter component that wraps elements and steps their rotation
-function JitterFloat({ children, speed, ...props }) {
-  const groupRef = useRef();
-  const timeRef = useRef(0);
-  const targetRot = useRef(new THREE.Vector3());
-
-  useFrame((state, delta) => {
-    timeRef.current += delta;
-    // Step animation (update target every 0.15s) for a stop-motion feel
-    if (timeRef.current > 0.15) {
-      timeRef.current = 0;
-      targetRot.current.x += (Math.random() - 0.5) * 0.1;
-      targetRot.current.y += (Math.random() - 0.5) * 0.1;
-      targetRot.current.z += (Math.random() - 0.5) * 0.1;
-    }
-    
-    // Lerp to the stepped target for a snappy "jitter" effect
-    if (groupRef.current) {
-      groupRef.current.rotation.x += (targetRot.current.x - groupRef.current.rotation.x) * 0.2;
-      groupRef.current.rotation.y += (targetRot.current.y - groupRef.current.rotation.y) * 0.2;
-      groupRef.current.rotation.z += (targetRot.current.z - groupRef.current.rotation.z) * 0.2;
-    }
-  });
-
-  return (
-    <Float speed={speed} rotationIntensity={0} floatIntensity={1.5} floatingRange={[-0.4, 0.4]} {...props}>
-      <group ref={groupRef}>
-        {children}
-      </group>
-    </Float>
-  );
-}
-
-function BrutalistShapes() {
-  // Ultra-cheap material, no heavy shader compiling
-  const baseMaterial = useMemo(() => new THREE.MeshLambertMaterial({ color: "#fff" }), []);
+  // Frame backing material
+  const backingMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
+    roughness: 0.4,
+    metalness: 0.1,
+  }), []);
 
   return (
     <>
       {SHAPE_DATA.map((data, i) => {
-        const mat = baseMaterial.clone();
-        mat.color.set(data.color);
-
-        let geometryNode = null;
-        if (data.type === "block") {
-          geometryNode = (
-            <mesh material={mat}>
-              <boxGeometry args={[1, 1, 1]} />
-              <Outlines thickness={OUTLINE_THICKNESS} color={OUTLINE_COLOR} />
-            </mesh>
-          );
-        } else if (data.type === "polaroid") {
-          // A flat block representing a polaroid
-          geometryNode = (
-            <mesh material={mat}>
-              <boxGeometry args={[1.2, 1.4, 0.2]} />
-              <Outlines thickness={OUTLINE_THICKNESS} color={OUTLINE_COLOR} />
-              {/* Fake inner photo area */}
-              <mesh position={[0, 0.1, 0.11]}>
-                <boxGeometry args={[1.0, 1.0, 0.01]} />
-                <meshLambertMaterial color="#fffdf9" />
-                <Outlines thickness={OUTLINE_THICKNESS} color={OUTLINE_COLOR} />
+        let contentNode = null;
+        
+        if (data.type === "frame") {
+          const mat = backingMaterial.clone();
+          mat.color.set(data.color);
+          
+          contentNode = (
+            <group>
+              {/* The glass front */}
+              <mesh material={glassMaterial} position={[0, 0, 0.1]}>
+                <boxGeometry args={[1.5, 1.8, 0.1]} />
               </mesh>
-            </mesh>
+              {/* The colored backing (like a photo matte) */}
+              <mesh material={mat} position={[0, 0, -0.05]}>
+                <boxGeometry args={[1.5, 1.8, 0.1]} />
+              </mesh>
+            </group>
           );
-        } else if (data.type === "star") {
-          geometryNode = (
-            <mesh material={mat}>
-              <coneGeometry args={[0.7, 1.2, 4]} />
-              <Outlines thickness={OUTLINE_THICKNESS} color={OUTLINE_COLOR} />
-            </mesh>
+        } else if (data.type === "emoji") {
+          contentNode = (
+            <Html transform sprite className="floating-emoji">
+              {data.content}
+            </Html>
           );
         }
 
         return (
-          <JitterFloat key={i} speed={1.5 + (i % 2)}>
+          // Smooth, deep drifting animation
+          <Float key={i} speed={1 + (i % 2)} rotationIntensity={0.5} floatIntensity={1.5} floatingRange={[-0.5, 0.5]}>
             <group position={data.position} rotation={data.rot} scale={data.scale}>
-              {geometryNode}
+              {contentNode}
             </group>
-          </JitterFloat>
+          </Float>
         );
       })}
     </>
@@ -300,21 +277,23 @@ export default function Background3D() {
     >
       <BaseLayers />
       
-      {/* Flat shading prevents expensive lighting calculations */}
+      {/* High fidelity rendering enabled (antialias true, higher DPR cap) */}
       <Canvas
         camera={{ position: [0, 0, 10], fov: 45 }}
-        dpr={[1, 1.5]}
-        gl={{ alpha: true, antialias: false, powerPreference: "high-performance" }}
+        dpr={[1, 2]} // Allow higher resolution since we are targeting max quality
+        gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
         style={{ position: "absolute", inset: 0, zIndex: 1 }}
       >
         <ScrollFreezer />
         <CameraRig isTouch={isTouch} />
         
-        {/* Simple, flat lighting */}
-        <ambientLight intensity={1.5} />
-        <directionalLight position={[5, 10, 5]} intensity={1.5} />
+        <ambientLight intensity={1.0} />
+        <directionalLight position={[5, 10, 5]} intensity={1.5} color="#fff" />
         
-        <BrutalistShapes />
+        {/* HDRI Environment for realistic glass reflections */}
+        <Environment preset="studio" />
+        
+        <FloatingMemories />
       </Canvas>
     </div>
   );
