@@ -13,6 +13,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
+import time as _time
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -21,7 +22,15 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-app = FastAPI()
+# Server boot timestamp for uptime calculation
+_SERVER_START_TIME = _time.monotonic()
+_SERVER_START_UTC = datetime.now(timezone.utc).isoformat()
+
+app = FastAPI(
+    title="WhosePic API",
+    description="Backend API for WhosePic — the real-time multiplayer photo guessing party game.",
+    version="1.0.0",
+)
 api_router = APIRouter(prefix="/api")
 
 # ============ Models ============
@@ -303,7 +312,38 @@ async def persist_finished_game(code: str):
 
 @api_router.get("/")
 async def root():
-    return {"message": "Childhood Quiz API"}
+    return {"message": "WhosePic API"}
+
+@api_router.get("/health")
+async def health_check():
+    """Production health-check endpoint.
+
+    Returns server status, uptime, DB connectivity, and active room count.
+    Used by Render, load balancers, and uptime monitors.
+    """
+    uptime_s = round(_time.monotonic() - _SERVER_START_TIME, 2)
+    db_ok = False
+    try:
+        await client.admin.command("ping")
+        db_ok = True
+    except Exception:
+        pass
+
+    status = "healthy" if db_ok else "degraded"
+    return {
+        "status": status,
+        "uptime_s": uptime_s,
+        "started_at": _SERVER_START_UTC,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "database": "connected" if db_ok else "unreachable",
+        "active_rooms": len(rooms_state),
+    }
+
+# Mirror at root level for simpler infra probes (no /api prefix needed)
+@app.get("/health")
+async def health_check_root():
+    return await health_check()
+
 
 @api_router.post("/rooms")
 async def create_room(body: CreateRoomRequest):

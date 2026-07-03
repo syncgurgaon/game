@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 
 /**
@@ -10,6 +10,13 @@ import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
  * far ones — a cheap-but-convincing 3D parallax with zero external libraries.
  *
  * Purely decorative: aria-hidden, pointer-events: none, fixed behind everything.
+ *
+ * Scroll-glitch fix:
+ * - The outer container uses `will-change: transform`, `backface-visibility: hidden`,
+ *   and `contain: layout style paint` to force GPU-composited layers and isolate
+ *   any repaint from the rest of the page.
+ * - Mouse tracking is throttled to one rAF per frame so rapid scroll + mouse
+ *   events don't thrash layout.
  */
 
 const SHAPES = [
@@ -33,7 +40,17 @@ function FloatingShape({ shape, tiltX, tiltY }) {
 
   return (
     <motion.div
-      style={{ position: "absolute", left: x, top: y, x: px, y: py, translateZ, zIndex: Math.round(depth * 10) }}
+      style={{
+        position: "absolute",
+        left: x,
+        top: y,
+        x: px,
+        y: py,
+        translateZ,
+        zIndex: Math.round(depth * 10),
+        willChange: "transform",
+        backfaceVisibility: "hidden",
+      }}
     >
       <motion.div
         aria-hidden="true"
@@ -63,6 +80,8 @@ function FloatingShape({ shape, tiltX, tiltY }) {
           boxShadow: `${6 * depth + 2}px ${6 * depth + 2}px 0 var(--ink)`,
           filter: depth < 0.5 ? `blur(${(0.5 - depth) * 3}px)` : "none",
           userSelect: "none",
+          willChange: "transform",
+          backfaceVisibility: "hidden",
         }}
       >
         {emoji}
@@ -74,15 +93,34 @@ function FloatingShape({ shape, tiltX, tiltY }) {
 export default function Background3D() {
   const rawX = useMotionValue(0);
   const rawY = useMotionValue(0);
-  const tiltX = useSpring(rawX, { stiffness: 60, damping: 18 });
-  const tiltY = useSpring(rawY, { stiffness: 60, damping: 18 });
+  // Softer spring with higher damping → no jitter on scroll
+  const tiltX = useSpring(rawX, { stiffness: 40, damping: 24, mass: 1.2 });
+  const tiltY = useSpring(rawY, { stiffness: 40, damping: 24, mass: 1.2 });
   const [enabled, setEnabled] = useState(true);
   const driftRef = useRef();
+  const rafRef = useRef(null);
 
   // Whole stage counter-tilts slightly for a parallax "camera" feel.
   // Declared before any early return to keep hook order stable.
   const stageRotX = useTransform(tiltY, (v) => v * -4);
   const stageRotY = useTransform(tiltX, (v) => v * 4);
+
+  // Throttle mouse tracking to one rAF per frame — prevents scroll-thrash.
+  const pendingMouse = useRef({ x: 0, y: 0 });
+  const onMouseMove = useCallback(
+    (e) => {
+      pendingMouse.current.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      pendingMouse.current.y = (e.clientY / window.innerHeight - 0.5) * 2;
+      if (rafRef.current == null) {
+        rafRef.current = requestAnimationFrame(() => {
+          rawX.set(pendingMouse.current.x);
+          rawY.set(pendingMouse.current.y);
+          rafRef.current = null;
+        });
+      }
+    },
+    [rawX, rawY],
+  );
 
   useEffect(() => {
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -93,13 +131,12 @@ export default function Background3D() {
     }
 
     if (fine) {
-      // Cursor-driven parallax on desktop.
-      const onMove = (e) => {
-        rawX.set((e.clientX / window.innerWidth - 0.5) * 2);
-        rawY.set((e.clientY / window.innerHeight - 0.5) * 2);
+      // Cursor-driven parallax on desktop (rAF-throttled).
+      window.addEventListener("mousemove", onMouseMove, { passive: true });
+      return () => {
+        window.removeEventListener("mousemove", onMouseMove);
+        if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       };
-      window.addEventListener("mousemove", onMove);
-      return () => window.removeEventListener("mousemove", onMove);
     }
 
     // Touch / coarse-pointer devices: gentle autonomous drift.
@@ -112,7 +149,7 @@ export default function Background3D() {
     };
     driftRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(driftRef.current);
-  }, [rawX, rawY]);
+  }, [rawX, rawY, onMouseMove]);
 
   if (!enabled) return null;
 
@@ -126,6 +163,13 @@ export default function Background3D() {
         pointerEvents: "none",
         overflow: "hidden",
         perspective: "1000px",
+        /* GPU compositing hints — eliminates scroll glitching */
+        willChange: "transform",
+        backfaceVisibility: "hidden",
+        WebkitBackfaceVisibility: "hidden",
+        contain: "layout style paint",
+        transform: "translateZ(0)",
+        isolation: "isolate",
       }}
       data-testid="bg-3d"
     >
@@ -134,8 +178,11 @@ export default function Background3D() {
           position: "absolute",
           inset: 0,
           transformStyle: "preserve-3d",
+          transformOrigin: "center center",
           rotateX: stageRotX,
           rotateY: stageRotY,
+          willChange: "transform",
+          backfaceVisibility: "hidden",
         }}
       >
         {SHAPES.map((shape, i) => (
