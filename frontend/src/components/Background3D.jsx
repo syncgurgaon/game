@@ -1,20 +1,18 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Float, Environment, Html } from "@react-three/drei";
+import { Float, Environment, Html, Sphere, Torus, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 
 /**
- * WebGL Background - HIGH-FIDELITY "FLOATING MEMORIES"
+ * WebGL Background - GLOSSY "BEST EVER MADE"
  *
  * Architecture:
- * - Layer 1 & 2 (CSS): Warm animated gradient and ambient blobs (free for GPU).
- * - Layer 3 (WebGL): High-end `MeshPhysicalMaterial` glass polaroids and 
- *   native device emojis floating in 3D space (`<Html transform>`).
+ * - Layer 1 & 2 (CSS): Warm animated gradient and ambient blobs.
+ * - Layer 3 (WebGL): Ultra-premium glossy shapes (acrylic/glass candy) 
+ *   and tasteful, small native 3D emojis.
  *
  * Animations:
- * - Deep, smooth ocean-like drifting to evoke nostalgia and memory.
- * - Strict Scroll Freeze: The WebGL loop pauses entirely during scroll to 
- *   guarantee native scroll performance on mobile.
+ * - Smooth, luxurious drifting to feel like a high-end fun game.
  */
 
 /* ─── Shared Base Layers (Pure CSS) ─── */
@@ -43,10 +41,10 @@ function ensureStyles() {
       75%      { transform: translate(15px, 25px) scale(1.02); }
     }
     .floating-emoji {
-      font-size: 4rem;
+      font-size: 2rem; /* SMALLER, tasteful emojis */
       user-select: none;
       pointer-events: none;
-      filter: drop-shadow(0px 10px 20px rgba(0,0,0,0.15));
+      filter: drop-shadow(0px 8px 16px rgba(0,0,0,0.15));
     }
   `;
   document.head.appendChild(style);
@@ -86,32 +84,27 @@ function BaseLayers() {
   );
 }
 
-/* ─── High Fidelity WebGL Scene Elements ─── */
+/* ─── Ultra Glossy Scene Elements ─── */
 
 const SHAPE_DATA = [
-  { type: "frame", position: [-4, 3, -2], color: "#ffe873", scale: 1.2, rot: [0.5, 0.2, 0.1] },
-  { type: "emoji", content: "🤔", position: [4, 2, -1], scale: 1.5, rot: [-0.2, 0.8, 0] },
-  { type: "emoji", content: "📸", position: [-3, -2, 1], scale: 1.2, rot: [0, 0.5, -0.3] },
-  { type: "frame", position: [5, -3, -3], color: "#ff8a5b", scale: 1.4, rot: [0.3, -0.4, 0.5] },
+  { type: "donut", position: [-3, 3, -2], color: "#ff8a5b", scale: 0.8, rot: [0.5, 0.2, 0.1] },
+  { type: "emoji", content: "🤔", position: [3, 2.5, -1], scale: 1.0, rot: [-0.2, 0.8, 0] },
+  { type: "sphere", position: [4, -1, -2], color: "#b4a2fe", scale: 0.6, rot: [0, 0, 0] },
+  { type: "emoji", content: "📸", position: [-3, -2, 1], scale: 1.0, rot: [0, 0.5, -0.3] },
+  { type: "roundedBox", position: [5, -3, -3], color: "#7bf1a8", scale: 1.0, rot: [0.3, -0.4, 0.5] },
   { type: "emoji", content: "😂", position: [0, 4, -4], scale: 1.0, rot: [0.1, 0.1, 0.1] },
-  { type: "emoji", content: "🖼️", position: [2, 0, 2], scale: 1.3, rot: [-0.5, -0.1, 0.8] },
-  { type: "frame", position: [-2, -4, -1], color: "#7bf1a8", scale: 1.1, rot: [0.6, 0.2, -0.2] },
+  { type: "donut", position: [-1.5, -3.5, -1], color: "#ffe873", scale: 0.7, rot: [0.6, 0.2, -0.2] },
 ];
 
-function FloatingMemories() {
-  // High-fidelity frosted glass material
-  const glassMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
-    roughness: 0.15,
-    transmission: 0.9, // Glass-like transparency
-    thickness: 1.5,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.1,
-    ior: 1.5,
-  }), []);
-
-  // Frame backing material
-  const backingMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
-    roughness: 0.4,
+function PremiumGlossyShapes() {
+  // Ultra-glossy, translucent candy/acrylic material
+  const glossyMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
+    roughness: 0.05, // very smooth
+    transmission: 0.8, // highly transparent/glassy
+    thickness: 2.0, // lots of volume for refraction
+    clearcoat: 1.0, // extra shiny coat on top
+    clearcoatRoughness: 0.0,
+    ior: 1.5, // glass index of refraction
     metalness: 0.1,
   }), []);
 
@@ -120,33 +113,29 @@ function FloatingMemories() {
       {SHAPE_DATA.map((data, i) => {
         let contentNode = null;
         
-        if (data.type === "frame") {
-          const mat = backingMaterial.clone();
-          mat.color.set(data.color);
-          
-          contentNode = (
-            <group>
-              {/* The glass front */}
-              <mesh material={glassMaterial} position={[0, 0, 0.1]}>
-                <boxGeometry args={[1.5, 1.8, 0.1]} />
-              </mesh>
-              {/* The colored backing (like a photo matte) */}
-              <mesh material={mat} position={[0, 0, -0.05]}>
-                <boxGeometry args={[1.5, 1.8, 0.1]} />
-              </mesh>
-            </group>
-          );
-        } else if (data.type === "emoji") {
+        if (data.type === "emoji") {
           contentNode = (
             <Html transform sprite className="floating-emoji">
               {data.content}
             </Html>
           );
+        } else {
+          // Clone material to set unique vibrant color
+          const mat = glossyMaterial.clone();
+          mat.color.set(data.color);
+          
+          if (data.type === "donut") {
+            contentNode = <Torus args={[0.8, 0.3, 16, 32]} material={mat} />;
+          } else if (data.type === "sphere") {
+            contentNode = <Sphere args={[1, 32, 32]} material={mat} />;
+          } else if (data.type === "roundedBox") {
+            contentNode = <RoundedBox args={[1.2, 1.2, 1.2]} radius={0.2} smoothness={4} material={mat} />;
+          }
         }
 
         return (
           // Smooth, deep drifting animation
-          <Float key={i} speed={1 + (i % 2)} rotationIntensity={0.5} floatIntensity={1.5} floatingRange={[-0.5, 0.5]}>
+          <Float key={i} speed={1 + (i % 2)} rotationIntensity={0.8} floatIntensity={2} floatingRange={[-0.5, 0.5]}>
             <group position={data.position} rotation={data.rot} scale={data.scale}>
               {contentNode}
             </group>
@@ -277,23 +266,24 @@ export default function Background3D() {
     >
       <BaseLayers />
       
-      {/* High fidelity rendering enabled (antialias true, higher DPR cap) */}
       <Canvas
         camera={{ position: [0, 0, 10], fov: 45 }}
-        dpr={[1, 2]} // Allow higher resolution since we are targeting max quality
+        dpr={[1, 2]} 
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
         style={{ position: "absolute", inset: 0, zIndex: 1 }}
       >
         <ScrollFreezer />
         <CameraRig isTouch={isTouch} />
         
-        <ambientLight intensity={1.0} />
-        <directionalLight position={[5, 10, 5]} intensity={1.5} color="#fff" />
+        {/* Soft, vibrant lighting to highlight the gloss */}
+        <ambientLight intensity={1.2} />
+        <directionalLight position={[10, 10, 10]} intensity={1.5} color="#ffffff" />
+        <directionalLight position={[-10, -10, -5]} intensity={0.5} color="#b4a2fe" />
         
-        {/* HDRI Environment for realistic glass reflections */}
+        {/* Studio HDRI Environment for ultra-realistic gloss reflections */}
         <Environment preset="studio" />
         
-        <FloatingMemories />
+        <PremiumGlossyShapes />
       </Canvas>
     </div>
   );
