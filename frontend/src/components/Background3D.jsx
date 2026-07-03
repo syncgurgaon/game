@@ -1,25 +1,22 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Float, Environment, ContactShadows, RoundedBox } from "@react-three/drei";
+import { Float, Outlines, Text3D, Center } from "@react-three/drei";
 import * as THREE from "three";
 
 /**
- * WebGL Background (Three.js + React Three Fiber)
+ * WebGL Background - NEO-BRUTALIST VIBE
  *
  * Architecture:
- * - Layer 1 & 2 (CSS): The warm animated gradient and soft ambient blobs remain
- *   as pure CSS behind the canvas. They are virtually free for the GPU.
- * - Layer 3 (WebGL): Soft, rounded neo-brutalist 3D shapes floating in space.
+ * - Layer 1 & 2 (CSS): Warm animated gradient and ambient blobs (free for GPU).
+ * - Layer 3 (WebGL): Neo-brutalist 3D shapes (blocks, polaroids, stars) with
+ *   thick black outlines (Hull technique) and flat shading for buttery smoothness.
  *
- * Optimizations:
- * - Imperative Scroll Freeze: During scroll/touchmove, we use R3F's `set({ frameloop: 'demand' })`
- *   to completely halt the WebGL render loop. This frees the main thread for the
- *   browser's scroll compositor. Once scrolling stops, `frameloop: 'always'` resumes.
- * - Clamped DPR: Mobile devices cap at 1.5 pixel ratio.
- * - Low-poly geometries (RoundedBox with low segments).
+ * Animations:
+ * - Playful "jitter" rotation (stop-motion feel) to match the brutalist aesthetic.
+ * - Strict Scroll Freeze: The WebGL loop pauses entirely during scroll.
  */
 
-/* ─── Shared Base Layers (Gradient & Blobs - Pure CSS) ─── */
+/* ─── Shared Base Layers (Pure CSS) ─── */
 const BLOBS = [
   { color: "rgba(255,232,115,0.25)", x: "15%", y: "20%", size: 220, dur: 18, delay: 0 },
   { color: "rgba(180,162,254,0.2)",  x: "75%", y: "15%", size: 260, dur: 22, delay: 2 },
@@ -82,51 +79,103 @@ function BaseLayers() {
   );
 }
 
-/* ─── WebGL Scene Elements ─── */
+/* ─── WebGL Scene Elements (Neo-Brutalist) ─── */
 
 const SHAPE_DATA = [
-  { position: [-4, 3, -2], color: "#ffe873", scale: 1.2, rot: [0.5, 0.2, 0.1] },
-  { position: [4, 2, -1], color: "#7bf1a8", scale: 1.0, rot: [-0.2, 0.8, 0] },
-  { position: [-3, -2, 1], color: "#b4a2fe", scale: 0.9, rot: [0, 0.5, -0.3] },
-  { position: [5, -3, -3], color: "#ff8a5b", scale: 1.4, rot: [0.3, -0.4, 0.5] },
-  { position: [0, 4, -4], color: "#a8dcff", scale: 0.8, rot: [0.1, 0.1, 0.1] },
-  { position: [2, 0, 2], color: "#ffb3c7", scale: 0.7, rot: [-0.5, -0.1, 0.8] },
-  { position: [-2, -4, -1], color: "#7bf1a8", scale: 1.1, rot: [0.6, 0.2, -0.2] },
+  { type: "polaroid", position: [-4, 3, -2], color: "#ffe873", scale: 1.2, rot: [0.5, 0.2, 0.1] },
+  { type: "block", position: [4, 2, -1], color: "#7bf1a8", scale: 1.0, rot: [-0.2, 0.8, 0] },
+  { type: "star", position: [-3, -2, 1], color: "#b4a2fe", scale: 0.9, rot: [0, 0.5, -0.3] },
+  { type: "polaroid", position: [5, -3, -3], color: "#ff8a5b", scale: 1.4, rot: [0.3, -0.4, 0.5] },
+  { type: "block", position: [0, 4, -4], color: "#a8dcff", scale: 0.8, rot: [0.1, 0.1, 0.1] },
+  { type: "star", position: [2, 0, 2], color: "#ffb3c7", scale: 0.7, rot: [-0.5, -0.1, 0.8] },
+  { type: "block", position: [-2, -4, -1], color: "#7bf1a8", scale: 1.1, rot: [0.6, 0.2, -0.2] },
 ];
 
-function FloatingShapes() {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    roughness: 0.15,
-    metalness: 0.1,
-    transmission: 0.2, // subtle glass/plastic effect
-    thickness: 0.5,
-    clearcoat: 0.3,
-    clearcoatRoughness: 0.2,
-  }), []);
+const OUTLINE_THICKNESS = 0.04;
+const OUTLINE_COLOR = "#1a1a1a";
+
+// A custom jitter component that wraps elements and steps their rotation
+function JitterFloat({ children, speed, ...props }) {
+  const groupRef = useRef();
+  const timeRef = useRef(0);
+  const targetRot = useRef(new THREE.Vector3());
+
+  useFrame((state, delta) => {
+    timeRef.current += delta;
+    // Step animation (update target every 0.15s) for a stop-motion feel
+    if (timeRef.current > 0.15) {
+      timeRef.current = 0;
+      targetRot.current.x += (Math.random() - 0.5) * 0.1;
+      targetRot.current.y += (Math.random() - 0.5) * 0.1;
+      targetRot.current.z += (Math.random() - 0.5) * 0.1;
+    }
+    
+    // Lerp to the stepped target for a snappy "jitter" effect
+    if (groupRef.current) {
+      groupRef.current.rotation.x += (targetRot.current.x - groupRef.current.rotation.x) * 0.2;
+      groupRef.current.rotation.y += (targetRot.current.y - groupRef.current.rotation.y) * 0.2;
+      groupRef.current.rotation.z += (targetRot.current.z - groupRef.current.rotation.z) * 0.2;
+    }
+  });
+
+  return (
+    <Float speed={speed} rotationIntensity={0} floatIntensity={1.5} floatingRange={[-0.4, 0.4]} {...props}>
+      <group ref={groupRef}>
+        {children}
+      </group>
+    </Float>
+  );
+}
+
+function BrutalistShapes() {
+  // Ultra-cheap material, no heavy shader compiling
+  const baseMaterial = useMemo(() => new THREE.MeshLambertMaterial({ color: "#fff" }), []);
 
   return (
     <>
-      {SHAPE_DATA.map((data, i) => (
-        <Float key={i} speed={2 + (i % 2)} rotationIntensity={1.5} floatIntensity={2} floatingRange={[-0.5, 0.5]}>
-          <RoundedBox
-            position={data.position}
-            rotation={data.rot}
-            scale={data.scale}
-            args={[1, 1, 1]}
-            radius={0.3}
-            smoothness={4} // low poly for performance
-          >
-            {/* Clone material to set unique color */}
-            <primitive object={material.clone()} color={data.color} attach="material" />
-            
-            {/* Outline (Neo-brutalist feel in 3D) */}
-            <lineSegments>
-              <edgesGeometry args={[new THREE.BoxGeometry(1, 1, 1)]} />
-              <lineBasicMaterial color="#1a1a1a" linewidth={2} />
-            </lineSegments>
-          </RoundedBox>
-        </Float>
-      ))}
+      {SHAPE_DATA.map((data, i) => {
+        const mat = baseMaterial.clone();
+        mat.color.set(data.color);
+
+        let geometryNode = null;
+        if (data.type === "block") {
+          geometryNode = (
+            <mesh material={mat}>
+              <boxGeometry args={[1, 1, 1]} />
+              <Outlines thickness={OUTLINE_THICKNESS} color={OUTLINE_COLOR} />
+            </mesh>
+          );
+        } else if (data.type === "polaroid") {
+          // A flat block representing a polaroid
+          geometryNode = (
+            <mesh material={mat}>
+              <boxGeometry args={[1.2, 1.4, 0.2]} />
+              <Outlines thickness={OUTLINE_THICKNESS} color={OUTLINE_COLOR} />
+              {/* Fake inner photo area */}
+              <mesh position={[0, 0.1, 0.11]}>
+                <boxGeometry args={[1.0, 1.0, 0.01]} />
+                <meshLambertMaterial color="#fffdf9" />
+                <Outlines thickness={OUTLINE_THICKNESS} color={OUTLINE_COLOR} />
+              </mesh>
+            </mesh>
+          );
+        } else if (data.type === "star") {
+          geometryNode = (
+            <mesh material={mat}>
+              <coneGeometry args={[0.7, 1.2, 4]} />
+              <Outlines thickness={OUTLINE_THICKNESS} color={OUTLINE_COLOR} />
+            </mesh>
+          );
+        }
+
+        return (
+          <JitterFloat key={i} speed={1.5 + (i % 2)}>
+            <group position={data.position} rotation={data.rot} scale={data.scale}>
+              {geometryNode}
+            </group>
+          </JitterFloat>
+        );
+      })}
     </>
   );
 }
@@ -142,7 +191,6 @@ function CameraRig({ isTouch }) {
       const handleOrientation = (e) => {
         const gamma = e.gamma ?? 0;
         const beta = e.beta ?? 0;
-        // Map gyro limits to gentle camera angles
         targetRot.current.y = Math.max(-1, Math.min(1, gamma / 40)) * 0.3;
         targetRot.current.x = Math.max(-1, Math.min(1, (beta - 45) / 40)) * 0.3;
         gyroActive.current = true;
@@ -174,15 +222,12 @@ function CameraRig({ isTouch }) {
   useFrame((state, delta) => {
     if (isTouch) {
       if (!gyroActive.current) {
-        // Fallback gentle drift on mobile if no gyro
         targetRot.current.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
         targetRot.current.y = Math.cos(state.clock.elapsedTime * 0.4) * 0.1;
       }
-      // Lerp camera rotation
       camera.rotation.x += (targetRot.current.x - camera.rotation.x) * 4 * delta;
       camera.rotation.y += (targetRot.current.y - camera.rotation.y) * 4 * delta;
     } else {
-      // Desktop cursor parallax
       const targetX = mouse.current.x * 2;
       const targetY = mouse.current.y * 2;
       camera.position.x += (targetX - camera.position.x) * 3 * delta;
@@ -204,13 +249,11 @@ function ScrollFreezer() {
     const onScroll = () => {
       if (!isScrolling.current) {
         isScrolling.current = true;
-        // Pause WebGL rendering entirely!
         set({ frameloop: "demand" });
       }
       clearTimeout(scrollTimeout.current);
       scrollTimeout.current = setTimeout(() => {
         isScrolling.current = false;
-        // Resume WebGL rendering
         set({ frameloop: "always" });
       }, 250);
     };
@@ -257,24 +300,21 @@ export default function Background3D() {
     >
       <BaseLayers />
       
-      {/* WebGL Canvas overlays the CSS gradient/blobs */}
+      {/* Flat shading prevents expensive lighting calculations */}
       <Canvas
         camera={{ position: [0, 0, 10], fov: 45 }}
-        dpr={[1, 1.5]} // Limit DPR on mobile for performance
-        gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
+        dpr={[1, 1.5]}
+        gl={{ alpha: true, antialias: false, powerPreference: "high-performance" }}
         style={{ position: "absolute", inset: 0, zIndex: 1 }}
       >
         <ScrollFreezer />
         <CameraRig isTouch={isTouch} />
         
-        {/* Warm "Golden Hour" Lighting setup */}
-        <ambientLight intensity={0.6} color="#ffe873" />
-        <directionalLight position={[10, 10, 5]} intensity={1.2} color="#ffffff" castShadow />
-        <directionalLight position={[-10, -10, -5]} intensity={0.5} color="#b4a2fe" />
+        {/* Simple, flat lighting */}
+        <ambientLight intensity={1.5} />
+        <directionalLight position={[5, 10, 5]} intensity={1.5} />
         
-        <Environment preset="city" /> {/* Provides soft PBR reflections */}
-        
-        <FloatingShapes />
+        <BrutalistShapes />
       </Canvas>
     </div>
   );
