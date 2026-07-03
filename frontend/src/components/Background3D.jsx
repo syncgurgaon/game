@@ -4,16 +4,16 @@ import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 /**
  * Background3D — decorative parallax layer.
  *
- * Input modes:
- *   Desktop  → cursor-driven parallax via framer-motion springs
- *   Mobile   → DeviceOrientation (gyroscope) OR gentle sine drift fallback
- *
- * MOBILE PERFORMANCE ARCHITECTURE:
- *   React setState is too slow for 60fps animation. On mobile, the parallax
- *   offset is written DIRECTLY to each shape's DOM node via a single rAF loop,
- *   completely bypassing React's reconciliation cycle. The bob/rotate
- *   animations are pure CSS @keyframes running on the compositor thread.
- *   No perspective, no preserve-3d, no framer-motion on mobile at all.
+ * MOBILE ARCHITECTURE (scroll-jank-free):
+ *   1. The rAF animation loop is PAUSED during active scroll. A scroll listener
+ *      sets a "scrolling" flag; the loop only writes transforms when the flag
+ *      is false. This ensures the main thread is free for the compositor during
+ *      scroll, eliminating the "stuck shapes" issue entirely.
+ *   2. Parallax offsets are written directly to DOM refs — zero React re-renders.
+ *   3. Bob/rotate are pure CSS @keyframes — compositor thread only.
+ *   4. Input: DeviceOrientation (gyroscope) if available, else gentle sine drift.
+ *   5. The container has NO perspective, NO preserve-3d, and NO transform.
+ *      Only individual shapes get translate3d() and will-change.
  */
 
 const SHAPES = [
@@ -88,42 +88,67 @@ function DesktopShape({ shape, tiltX, tiltY }) {
   );
 }
 
-/* ─────────────── Mobile background (zero React re-renders) ─────────────── */
+/* ─────────────── Mobile background (zero re-renders, scroll-aware) ─────── */
 function MobileBackground() {
-  const containerRef = useRef(null);
-  // Store refs to each shape wrapper so we can write transforms directly
   const shapeRefs = useRef([]);
   const animFrameRef = useRef(null);
   const gyroAvailable = useRef(false);
 
-  // Animation state lives entirely outside React
-  const target = useRef({ x: 0, y: 0 });   // where we want to be
-  const current = useRef({ x: 0, y: 0 });   // where we are now (lerped)
+  // Animation state lives entirely outside React — no setState, no re-renders
+  const target = useRef({ x: 0, y: 0 });
+  const current = useRef({ x: 0, y: 0 });
+  const isScrolling = useRef(false);
+  const scrollTimeout = useRef(null);
 
   useEffect(() => {
     ensureMobileKeyframes();
 
-    // ── Lerp loop: runs every frame, writes directly to DOM ──
-    const LERP = 0.08; // 0 = frozen, 1 = instant. 0.08 = very smooth
+    // ── Scroll detection: freeze parallax during scroll ──
+    const onScroll = () => {
+      isScrolling.current = true;
+      clearTimeout(scrollTimeout.current);
+      // Resume parallax 200ms after scroll stops
+      scrollTimeout.current = setTimeout(() => {
+        isScrolling.current = false;
+      }, 200);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    // Also listen on touchmove for immediate scroll detection
+    const onTouchMove = () => { isScrolling.current = true; };
+    const onTouchEnd = () => {
+      // Don't immediately unfreeze — wait for momentum scroll to settle
+      clearTimeout(scrollTimeout.current);
+      scrollTimeout.current = setTimeout(() => {
+        isScrolling.current = false;
+      }, 300);
+    };
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+
+    // ── Lerp loop: writes directly to DOM, skips during scroll ──
+    const LERP = 0.06;
     let running = true;
 
     const tick = () => {
       if (!running) return;
-      // Lerp current toward target
-      current.current.x += (target.current.x - current.current.x) * LERP;
-      current.current.y += (target.current.y - current.current.y) * LERP;
 
-      const cx = current.current.x;
-      const cy = current.current.y;
+      // During scroll: skip ALL transform writes — main thread stays free
+      if (!isScrolling.current) {
+        current.current.x += (target.current.x - current.current.x) * LERP;
+        current.current.y += (target.current.y - current.current.y) * LERP;
 
-      // Write transforms directly — no setState, no re-render
-      for (let i = 0; i < SHAPES.length; i++) {
-        const el = shapeRefs.current[i];
-        if (!el) continue;
-        const depth = SHAPES[i].depth;
-        const dx = cx * depth * 28;
-        const dy = cy * depth * 28;
-        el.style.transform = `translate3d(${dx}px,${dy}px,0)`;
+        const cx = current.current.x;
+        const cy = current.current.y;
+
+        for (let i = 0; i < SHAPES.length; i++) {
+          const el = shapeRefs.current[i];
+          if (!el) continue;
+          const depth = SHAPES[i].depth;
+          const dx = cx * depth * 28;
+          const dy = cy * depth * 28;
+          el.style.transform = `translate3d(${dx}px,${dy}px,0)`;
+        }
       }
 
       animFrameRef.current = requestAnimationFrame(tick);
@@ -152,7 +177,7 @@ function MobileBackground() {
       startGyro();
     }
 
-    // ── Fallback: if gyro never fires after 1.5s, use sine drift ──
+    // ── Fallback drift if no gyro after 1.5s ──
     const fallbackTimer = setTimeout(() => {
       if (!gyroAvailable.current) {
         let t = 0;
@@ -161,7 +186,6 @@ function MobileBackground() {
           t += 0.004;
           target.current.x = Math.sin(t) * 0.35;
           target.current.y = Math.cos(t * 0.7) * 0.35;
-          // drift updates are picked up by the tick loop above
           requestAnimationFrame(drift);
         };
         requestAnimationFrame(drift);
@@ -170,15 +194,18 @@ function MobileBackground() {
 
     return () => {
       running = false;
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
       window.removeEventListener("deviceorientation", handleOrientation);
       clearTimeout(fallbackTimer);
+      clearTimeout(scrollTimeout.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
   }, []);
 
   return (
     <div
-      ref={containerRef}
       aria-hidden="true"
       data-testid="bg-3d"
       style={{
@@ -187,8 +214,9 @@ function MobileBackground() {
         zIndex: 0,
         pointerEvents: "none",
         overflow: "hidden",
-        contain: "strict",
-        isolation: "isolate",
+        /* No perspective, no preserve-3d, no transform on the container.
+           The container is the simplest possible fixed div so the mobile
+           browser's scroll compositor ignores it completely. */
       }}
     >
       {SHAPES.map((shape, i) => {
