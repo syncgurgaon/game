@@ -1,0 +1,41 @@
+Implemented Vercel Web Analytics for the project
+
+## Changes Made
+
+### Installed Package
+- Added `@vercel/analytics@2.0.1` to project dependencies using yarn
+
+### Modified Files
+
+1. **frontend/package.json**
+   - Added `@vercel/analytics` as a direct dependency
+
+2. **frontend/src/App.js**
+   - Imported `Analytics` component from `@vercel/analytics/react`
+   - Added `<Analytics />` component to the App component JSX (placed after the Toaster component)
+
+3. **frontend/yarn.lock**
+   - Updated with new dependency information for `@vercel/analytics`
+
+## Implementation Details
+
+Following the official Vercel Analytics quickstart documentation (https://vercel.com/docs/analytics/quickstart), I:
+1. Fetched the latest installation instructions from Vercel's documentation
+2. Identified this as a Create React App project
+3. Used the React-specific integration: imported from `@vercel/analytics/react`
+4. Added the Analytics component to the main App component where it will be rendered on all pages
+
+The Analytics component has been placed at the root level of the application, ensuring that page views and analytics events are tracked across all routes (Home, History, and Room pages).
+
+## Verification
+
+- Build completed successfully with `yarn build`
+- No errors or warnings introduced
+- The Analytics component is now integrated and will track page views when deployed to Vercel
+
+## Next Steps
+
+After deployment to Vercel:
+1. Enable Web Analytics in the Vercel dashboard (Analytics section)
+2. Verify analytics tracking by checking the Network tab for requests to `/_vercel/insights/*`
+3. View analytics data in the Vercel dashboard
