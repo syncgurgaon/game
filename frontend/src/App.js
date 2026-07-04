@@ -1,6 +1,7 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
+import { Analytics } from "@vercel/analytics/react";
 import Home from "@/pages/Home";
 import Room from "@/pages/Room";
 import History from "@/pages/History";
@@ -35,6 +36,7 @@ function App() {
             },
           }}
         />
+        <Analytics />
       </div>
     </AudioProvider>
   );
