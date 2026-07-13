@@ -4,7 +4,8 @@ import { Copy, Check, Play, Users, Crown, X, Settings, EyeOff, Camera, Sparkles 
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import InitialAvatar from "@/components/InitialAvatar";
-import PhotoDeck from "@/components/PhotoDeck";
+import PhotoUpload from "@/components/PhotoUpload";
+import { PROMPT_HINT } from "@/lib/theme";
 
 const playerCardColors = [
   "var(--c-yellow)",
@@ -21,7 +22,7 @@ export default function Lobby({ state, me, isHost }) {
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
   const [savingSetting, setSavingSetting] = useState(false);
-  const [newPhoto, setNewPhoto] = useState([]);
+  const [newPhoto, setNewPhoto] = useState("");
   const [uploading, setUploading] = useState(false);
   const shareUrl = `${window.location.origin}/?code=${state.code}`;
   const duration = state.round_duration_s || 15;
@@ -32,12 +33,12 @@ export default function Lobby({ state, me, isHost }) {
   const canStart = state.players.length >= 2 && pendingCount === 0;
 
   const uploadPhoto = async () => {
-    if (!newPhoto || newPhoto.length === 0) return;
+    if (!newPhoto) return;
     setUploading(true);
     try {
-      await api.post(`/rooms/${state.code}/photo`, { player_id: me.player_id, photos: newPhoto });
-      toast.success("Deck uploaded!");
-      setNewPhoto([]);
+      await api.post(`/rooms/${state.code}/photo`, { player_id: me.player_id, photo: newPhoto });
+      toast.success("Pic locked in!");
+      setNewPhoto("");
     } catch (err) {
       toast.error(err.response?.data?.detail || "Upload failed");
     } finally {
@@ -109,7 +110,7 @@ export default function Lobby({ state, me, isHost }) {
         </span>
       </h1>
       <p className="font-body text-lg mt-4 text-[var(--ink)]/70 max-w-2xl">
-        Share the link. Everyone drops any pic from their phone — meme, screenshot, throwback, anything. Pics stay <span className="font-display uppercase">hidden</span> until their round!
+        Share the link. Everyone drops one chaotic pic — a cursed screenshot, a saved meme, a blurry accident. Pics stay <span className="font-display uppercase">hidden</span> until their round!
       </p>
 
       {needsPhoto && (
@@ -118,16 +119,16 @@ export default function Lobby({ state, me, isHost }) {
             <Camera strokeWidth={3} size={20} />
             <h3 className="font-display uppercase text-xl">Drop Your Pic</h3>
           </div>
-          <p className="font-body text-sm mb-4">Drop 1-10 pics — screenshots, memes, throwbacks, anything. The game randomly picks <span className="font-display uppercase">one</span> for your round.</p>
-          <PhotoDeck value={newPhoto} onChange={setNewPhoto} max={10} testId="reupload-deck" />
-          {newPhoto.length > 0 && (
+          <p className="font-body text-sm mb-4">{PROMPT_HINT}</p>
+          <PhotoUpload value={newPhoto} onChange={setNewPhoto} testId="reupload-photo" />
+          {newPhoto && (
             <button
               data-testid="reupload-submit-btn"
               disabled={uploading}
               onClick={uploadPhoto}
               className="nb-btn mt-4 w-full py-3 bg-[var(--c-mint)]"
             >
-              {uploading ? "Uploading..." : `Submit Deck (${newPhoto.length})`}
+              {uploading ? "Uploading..." : "Lock It In"}
             </button>
           )}
         </div>
@@ -157,7 +158,7 @@ export default function Lobby({ state, me, isHost }) {
             <Sparkles size={22} strokeWidth={3} className="mt-0.5 flex-shrink-0" />
             <div>
               <p className="font-display text-[11px] uppercase tracking-widest text-[var(--ink)]/70">
-                Everyone&apos;s Time Capsule Prompt
+                Tonight&apos;s Theme
               </p>
               <p className="font-display text-xl sm:text-2xl mt-1" data-testid="lobby-prompt-text">
                 {state.prompt}
