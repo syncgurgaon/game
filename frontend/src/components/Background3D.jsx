@@ -205,37 +205,6 @@ function CameraRig({ isTouch }) {
   return null;
 }
 
-/* ─── Scroll Freezer Hook ─── */
-function ScrollFreezer() {
-  const set = useThree((state) => state.set);
-  const scrollTimeout = useRef(null);
-  const isScrolling = useRef(false);
-
-  useEffect(() => {
-    const onScroll = () => {
-      if (!isScrolling.current) {
-        isScrolling.current = true;
-        set({ frameloop: "demand" });
-      }
-      clearTimeout(scrollTimeout.current);
-      scrollTimeout.current = setTimeout(() => {
-        isScrolling.current = false;
-        set({ frameloop: "always" });
-      }, 250);
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("touchmove", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("touchmove", onScroll);
-      clearTimeout(scrollTimeout.current);
-    };
-  }, [set]);
-
-  return null;
-}
-
 /* ─── Main Export ─── */
 export default function Background3D() {
   const [enabled, setEnabled] = useState(true);
@@ -258,21 +227,30 @@ export default function Background3D() {
       data-testid="bg-3d"
       style={{
         position: "fixed",
-        inset: 0,
+        top: 0,
+        left: 0,
+        width: "100vw",
+        // Use the large viewport unit so the mobile URL bar collapsing on
+        // scroll doesn't resize the background (falls back to 100vh).
+        height: "100dvh",
         zIndex: 0,
         pointerEvents: "none",
         overflow: "hidden",
+        // Promote to its own GPU layer so scrolling never repaints it.
+        transform: "translateZ(0)",
+        willChange: "transform",
+        contain: "strict",
       }}
     >
       <BaseLayers />
       
       <Canvas
         camera={{ position: [0, 0, 10], fov: 45 }}
-        dpr={[1, 2]} 
+        dpr={[1, 2]}
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
+        resize={{ scroll: false }}
         style={{ position: "absolute", inset: 0, zIndex: 1 }}
       >
-        <ScrollFreezer />
         <CameraRig isTouch={isTouch} />
         
         {/* Soft, vibrant lighting to highlight the gloss */}
