@@ -39,18 +39,19 @@ export default function PhotoUpload({ value, onChange, testId = "photo-upload" }
           className="nb-btn w-full py-6 bg-[var(--c-mint)] flex flex-col items-center gap-2 text-lg"
         >
           <Camera size={28} strokeWidth={3} />
-          {busy ? "Processing..." : "Upload a Pic"}        </button>
+          {busy ? "Processing..." : "Drop Your Chaos Pic"}
+        </button>
       ) : (
         <div className="relative polaroid wiggle mx-auto" style={{ maxWidth: 260 }}>
           <span className="tape" />
           <img
             data-testid={`${testId}-preview`}
             src={value}
-            alt="childhood preview"
+            alt="your pic preview"
             className="w-full aspect-square object-cover"
           />
           <p className="absolute bottom-3 left-0 right-0 text-center font-display text-sm uppercase">
-            That's me!
+            Pure chaos. Locked.
           </p>
           <button
             type="button"

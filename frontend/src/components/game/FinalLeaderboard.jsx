@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Trophy, Home, RotateCcw, Download, Zap, Brain, Share2, Copy, Link } from "lucide-react";
+import { Trophy, Home, RotateCcw, Download, Zap, Share2, Copy, Link } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -25,13 +25,7 @@ export default function FinalLeaderboard({ state, me, isHost }) {
     if (history.length === 0) return null;
     // Most chaotic: highest wrong_count (guessed wrong the most)
     const chaotic = [...history].sort((a, b) => b.wrong_count - a.wrong_count)[0];
-    // Hardest to guess: lowest correct rate (min correct/answered)
-    const hardest = [...history].sort((a, b) => {
-      const ra = a.answered_count ? a.correct_count / a.answered_count : 1;
-      const rb = b.answered_count ? b.correct_count / b.answered_count : 1;
-      return ra - rb;
-    })[0];
-    return { chaotic, hardest };
+    return { chaotic };
   }, [state.round_history]);
 
   const goHome = () => {
@@ -146,9 +140,9 @@ export default function FinalLeaderboard({ state, me, isHost }) {
         </h1>
       </div>
 
-      {/* Afterparty Zine — chaotic + hardest cards */}
+      {/* Afterparty Zine — the round that caused the most chaos */}
       {zineStats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto mb-10" data-testid="afterparty-zine">
+        <div className="max-w-sm mx-auto mb-10" data-testid="afterparty-zine">
           <div data-testid="most-chaotic-card" className="nb-card p-5 bg-[var(--c-peach)]">
             <div className="flex items-center gap-2">
               <Zap size={18} strokeWidth={3} />
@@ -157,19 +151,6 @@ export default function FinalLeaderboard({ state, me, isHost }) {
             <img src={zineStats.chaotic.photo} alt="chaotic" className="w-full aspect-square object-cover border-4 border-[var(--ink)] rounded-lg mt-3" />
             <p className="font-display uppercase text-lg mt-2 truncate">{zineStats.chaotic.target_name}</p>
             <p className="font-body text-xs text-[var(--ink)]/70">{zineStats.chaotic.wrong_count} wrong guesses</p>
-          </div>
-          <div data-testid="hardest-guess-card" className="nb-card p-5 bg-[var(--c-lavender)]">
-            <div className="flex items-center gap-2">
-              <Brain size={18} strokeWidth={3} />
-              <p className="font-display text-xs uppercase tracking-widest">Hardest to Guess</p>
-            </div>
-            <img src={zineStats.hardest.photo} alt="hardest" className="w-full aspect-square object-cover border-4 border-[var(--ink)] rounded-lg mt-3" />
-            <p className="font-display uppercase text-lg mt-2 truncate">{zineStats.hardest.target_name}</p>
-            <p className="font-body text-xs text-[var(--ink)]/70">
-              {zineStats.hardest.answered_count > 0
-                ? `${Math.round((zineStats.hardest.correct_count / zineStats.hardest.answered_count) * 100)}% guessed right`
-                : "no answers"}
-            </p>
           </div>
         </div>
       )}

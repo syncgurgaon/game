@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, Users, ArrowRight, History as HistoryIcon, Shuffle } from "lucide-react";
+import { Sparkles, Users, ArrowRight, History as HistoryIcon } from "lucide-react";
 import { toast } from "sonner";
-import PhotoDeck from "@/components/PhotoDeck";
+import PhotoUpload from "@/components/PhotoUpload";
 import { api } from "@/lib/api";
 import { useAudio } from "@/context/AudioContext";
-import { randomPrompt } from "@/lib/prompts";
+import { GAME_PROMPT, PROMPT_HINT } from "@/lib/theme";
 
 const cardColors = ["var(--c-yellow)", "var(--c-mint)", "var(--c-lavender)", "var(--c-peach)", "var(--c-pink)", "var(--c-sky)"];
 
@@ -16,57 +16,19 @@ export default function Home() {
   const initialCode = (params.get("code") || "").toUpperCase();
   const [mode, setMode] = useState(initialCode ? "join" : null);
   const [name, setName] = useState("");
-  const [photos, setPhotos] = useState([]);
+  const [photo, setPhoto] = useState("");
   const [code, setCode] = useState(initialCode);
   const [submitting, setSubmitting] = useState(false);
-  const [prompt, setPrompt] = useState(() => randomPrompt());
-  const [fetchedPrompt, setFetchedPrompt] = useState(null);
-  const [promptLoading, setPromptLoading] = useState(false);
   const { playSfx } = useAudio();
 
-  useEffect(() => {
-    if (!mode) setPrompt(randomPrompt(prompt));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
-
-  // When joining, the time-capsule prompt is fixed by the room — everyone sees the same one.
-  // Fetch the host's prompt once the code looks complete.
-  useEffect(() => {
-    if (mode !== "join") return;
-    const normCode = code.trim().toUpperCase();
-    if (normCode.length < 5) {
-      setFetchedPrompt(null);
-      return;
-    }
-    let cancelled = false;
-    setPromptLoading(true);
-    api
-      .get(`/rooms/${normCode}`)
-      .then((res) => {
-        if (!cancelled && res.data?.prompt) {
-          setFetchedPrompt(res.data.prompt);
-          setPrompt(res.data.prompt); // keep it synced for submission
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setFetchedPrompt(null);
-      })
-      .finally(() => {
-        if (!cancelled) setPromptLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, code]);
-
   const handleCreate = async () => {
-    if (!name.trim() || photos.length === 0) {
-      toast.error("Please enter your name and add at least one pic");
+    if (!name.trim() || !photo) {
+      toast.error("Please enter your name and add your pic");
       return;
     }
     setSubmitting(true);
     try {
-      const res = await api.post("/rooms", { name: name.trim(), photos, prompt });
+      const res = await api.post("/rooms", { name: name.trim(), photo });
       localStorage.setItem(`room_${res.data.code}`, JSON.stringify(res.data));
       playSfx("join");
       navigate(`/room/${res.data.code}`);
@@ -80,11 +42,10 @@ export default function Home() {
   const handleJoin = async () => {
     const normCode = code.trim().toUpperCase();
     if (!normCode) return toast.error("Enter a room code");
-    if (!name.trim() || photos.length === 0) return toast.error("Please enter your name and add at least one pic");
+    if (!name.trim() || !photo) return toast.error("Please enter your name and add your pic");
     setSubmitting(true);
     try {
-      // Pass the fetched prompt along if available, though backend ignores it on join
-      const res = await api.post(`/rooms/${normCode}/join`, { name: name.trim(), photos });
+      const res = await api.post(`/rooms/${normCode}/join`, { name: name.trim(), photo });
       localStorage.setItem(`room_${res.data.code}`, JSON.stringify(res.data));
       if (res.data.reconnected) toast.success("Welcome back! Resuming your session…");
       playSfx("join");
@@ -129,7 +90,7 @@ export default function Home() {
             transition={{ delay: 0.3 }}
             className="font-body text-lg sm:text-xl mt-8 max-w-2xl mx-auto text-[var(--ink)]"
           >
-            Everyone drops a pic from their phone — a chaotic meme, a random screenshot, a childhood throwback, anything. A pic appears. Four names. Tap the culprit fast. Whoever spots their squad first wins the night.
+            Everyone drops their most chaotic pic — a cursed screenshot, an unhinged meme, a photo no one can explain. A pic appears. Four names. Tap the culprit fast. Whoever spots their squad first wins the night.
           </motion.p>
 
           <div className="grid sm:grid-cols-2 gap-5 mt-12 max-w-2xl mx-auto">
@@ -233,38 +194,24 @@ export default function Home() {
               />
             </div>
             <div>
-              <label className="font-display text-sm uppercase tracking-widest block mb-2">Your Safe Deck</label>
+              <label className="font-display text-sm uppercase tracking-widest block mb-2">Your Pic</label>
               <div data-testid="prompt-card" className="mb-3 nb-card p-4 bg-[var(--c-yellow)]">
                 <div className="flex items-start gap-2">
                   <Sparkles size={18} strokeWidth={3} className="mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
                     <p className="font-display text-[10px] uppercase tracking-widest text-[var(--ink)]/70">
-                      Time Capsule Prompt
+                      Tonight&apos;s Theme
                     </p>
                     <p className="font-body font-bold text-base mt-1" data-testid="prompt-text">
-                      {mode === "join"
-                        ? (promptLoading ? "Loading the host's prompt…" : (fetchedPrompt || "Enter room code to reveal prompt..."))
-                        : prompt}
+                      {GAME_PROMPT}
                     </p>
                     <p className="font-body text-[11px] mt-1 text-[var(--ink)]/60">
-                      {mode === "create"
-                        ? "Shuffle to set the prompt — everyone in your room gets this one."
-                        : "Set by the host — the same for everyone in this room."}
+                      {PROMPT_HINT}
                     </p>
                   </div>
-                  {mode === "create" && (
-                    <button
-                      type="button"
-                      data-testid="prompt-shuffle-btn"
-                      onClick={() => setPrompt(randomPrompt(prompt))}
-                      className="nb-btn px-2 py-1 bg-[var(--bg-paper)] text-xs flex items-center gap-1"
-                    >
-                      <Shuffle size={12} strokeWidth={3} />
-                    </button>
-                  )}
                 </div>
               </div>
-              <PhotoDeck value={photos} onChange={setPhotos} max={10} testId="photo-deck" />
+              <PhotoUpload value={photo} onChange={setPhoto} testId="photo-upload" />
             </div>
             <button
               data-testid={`submit-${mode}-btn`}

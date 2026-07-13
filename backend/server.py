@@ -12,7 +12,7 @@ import string
 import uuid
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 import time as _time
 
@@ -39,8 +39,7 @@ api_router = APIRouter(prefix="/api")
 class Player(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
-    photo: str = ""  # legacy: single photo (still supported)
-    photos: List[str] = Field(default_factory=list)  # safe deck: pool of pics
+    photo: str = ""  # exactly one pic per player
     score: int = 0
     is_host: bool = False
     connected: bool = True
@@ -48,13 +47,10 @@ class Player(BaseModel):
 class CreateRoomRequest(BaseModel):
     name: str
     photo: Optional[str] = None
-    photos: Optional[List[str]] = None
-    prompt: Optional[str] = None  # host-chosen time-capsule prompt; shared by everyone in the room
 
 class JoinRoomRequest(BaseModel):
     name: str
     photo: Optional[str] = None
-    photos: Optional[List[str]] = None
 
 class SubmitAnswerRequest(BaseModel):
     player_id: str
@@ -72,7 +68,6 @@ class RematchRequest(BaseModel):
 class UpdatePhotoRequest(BaseModel):
     player_id: str
     photo: Optional[str] = None
-    photos: Optional[List[str]] = None
 
 class ReactRequest(BaseModel):
     player_id: str
@@ -155,29 +150,10 @@ DUMMY_NAMES = [
     "Casey Nguyen", "Morgan Diaz", "Quinn Smith", "Avery Park"
 ]
 
-# Fallback time-capsule prompts. The client normally sends the host-chosen prompt,
-# but if it's missing we pick one here so the whole room still shares a single prompt.
-TIME_CAPSULE_PROMPTS = [
-    "A core memory that lives in your head rent-free",
-    "An unhinged 3AM screenshot",
-    "That one blurry photo you refuse to delete",
-    "The most cursed selfie on your camera roll",
-    "The last meme you sent that made you cackle",
-    "The most chaotic pic from a group chat",
-    "Something in your camera roll you can't explain",
-    "A photo you took by accident that slaps",
-]
-
-def _normalize_photos(photo: Optional[str], photos: Optional[List[str]]) -> List[str]:
-    if photos:
-        return [p for p in photos if p][:10]
-    if photo:
-        return [photo]
-    return []
-
-def _pick_player_photo(player: dict) -> str:
-    pool = player.get("photos") or ([player["photo"]] if player.get("photo") else [])
-    return random.choice(pool) if pool else ""
+# The one and only game theme. Every room gets this prompt — no shuffling,
+# no host choice. Steers players toward camera-roll chaos (screenshots, memes,
+# blurry accidents) that doesn't need a face to be guessable.
+GAME_PROMPT = "The most chaotic pic"
 
 def _snapshot_round(s: dict) -> None:
     """Capture stats for the round that just ended, for the Afterparty Zine."""
@@ -211,7 +187,7 @@ def public_state(code: str, hide_answer: bool = True) -> dict:
             "id": p["id"],
             "name": p["name"],
             "photo": p["photo"] if show_photos else "",
-            "photo_ready": bool(p.get("photos")) or bool(p.get("photo")),
+            "photo_ready": bool(p.get("photo")),
             "score": p["score"],
             "is_host": p["is_host"],
             "connected": p["connected"],
@@ -249,7 +225,7 @@ def public_state(code: str, hide_answer: bool = True) -> dict:
 def build_question(s: dict) -> dict:
     target_id = s["round_order"][s["current_round"] - 1]
     target = next(p for p in s["players"] if p["id"] == target_id)
-    target_photo = _pick_player_photo(target)
+    target_photo = target.get("photo", "")
     # 3 distractors: other player names, fallback to dummies
     other_names = [p["name"] for p in s["players"] if p["id"] != target_id]
     random.shuffle(other_names)
@@ -369,19 +345,19 @@ async def health_check_root():
 
 @api_router.post("/rooms")
 async def create_room(body: CreateRoomRequest):
-    photos = _normalize_photos(body.photo, body.photos)
-    if not body.name.strip() or not photos:
-        raise HTTPException(400, "Name and at least one photo required")
+    photo = body.photo or ""
+    if not body.name.strip() or not photo:
+        raise HTTPException(400, "Name and a photo required")
     async with rooms_lock:
         code = gen_code()
         while code in rooms_state:
             code = gen_code()
-        host = Player(name=body.name.strip()[:30], photo=photos[0], photos=photos, is_host=True)
-        prompt = (body.prompt or "").strip()[:200] or random.choice(TIME_CAPSULE_PROMPTS)
+        host = Player(name=body.name.strip()[:30], photo=photo, is_host=True)
+        prompt = GAME_PROMPT
         rooms_state[code] = {
             "code": code,
             "host_id": host.id,
-            "prompt": prompt,  # single time-capsule prompt shared by everyone in the room
+            "prompt": prompt,  # the one hardcoded game theme, same for every room
             "status": "lobby",
             "players": [host.model_dump()],
             "current_round": 0,
@@ -401,12 +377,12 @@ async def create_room(body: CreateRoomRequest):
 @api_router.post("/rooms/{code}/join")
 async def join_room(code: str, body: JoinRoomRequest):
     code = code.upper()
-    photos = _normalize_photos(body.photo, body.photos)
+    photo = body.photo or ""
     name = body.name.strip()
     if not name:
-        raise HTTPException(400, "Name and at least one photo required")
+        raise HTTPException(400, "Name and a photo required")
     reconnect_resp = None
-    photos_updated = False
+    photo_updated = False
     async with rooms_lock:
         s = rooms_state.get(code)
         if not s:
@@ -418,10 +394,9 @@ async def join_room(code: str, body: JoinRoomRequest):
             # mid-game too, so a refresh/crash doesn't lock them out).
             if existing["connected"] and manager.is_connected(code, existing["id"]):
                 raise HTTPException(400, "Name already taken in this room")
-            if s["status"] == "lobby" and photos:
-                existing["photo"] = photos[0]
-                existing["photos"] = photos
-                photos_updated = True
+            if s["status"] == "lobby" and photo:
+                existing["photo"] = photo
+                photo_updated = True
             reconnect_resp = {
                 "code": code,
                 "player_id": existing["id"],
@@ -432,15 +407,15 @@ async def join_room(code: str, body: JoinRoomRequest):
         else:
             if s["status"] != "lobby":
                 raise HTTPException(400, "Game already started")
-            if not photos:
-                raise HTTPException(400, "Name and at least one photo required")
+            if not photo:
+                raise HTTPException(400, "Name and a photo required")
             if len(s["players"]) >= 12:
                 raise HTTPException(400, "Room is full (max 12 players)")
-            player = Player(name=name[:30], photo=photos[0], photos=photos, is_host=False)
+            player = Player(name=name[:30], photo=photo, is_host=False)
             s["players"].append(player.model_dump())
             prompt = s.get("prompt", "")
     if reconnect_resp:
-        if photos_updated:
+        if photo_updated:
             await manager.broadcast(code, {"type": "state", "state": public_state(code)})
         return reconnect_resp
     await manager.broadcast(code, {"type": "state", "state": public_state(code)})
@@ -639,20 +614,19 @@ async def _advance_after_result(code: str, round_num: int):
 @api_router.post("/rooms/{code}/photo")
 async def update_photo(code: str, body: UpdatePhotoRequest):
     code = code.upper()
-    photos = _normalize_photos(body.photo, body.photos)
+    photo = body.photo or ""
     async with rooms_lock:
         s = rooms_state.get(code)
         if not s:
             raise HTTPException(404, "Room not found")
         if s["status"] != "lobby":
             raise HTTPException(400, "Can only update photo in lobby")
-        if not photos:
+        if not photo:
             raise HTTPException(400, "Photo required")
         found = False
         for p in s["players"]:
             if p["id"] == body.player_id:
-                p["photo"] = photos[0]
-                p["photos"] = photos
+                p["photo"] = photo
                 found = True
                 break
         if not found:
@@ -671,11 +645,10 @@ async def rematch(code: str, body: RematchRequest):
             raise HTTPException(403, "Only host can start a rematch")
         if s["status"] != "finished":
             raise HTTPException(400, "Game must be finished first")
-        # Reset state, keep players identity but clear photo pools so everyone re-drops
+        # Reset state, keep players identity but clear photos so everyone re-drops
         for p in s["players"]:
             p["score"] = 0
             p["photo"] = ""
-            p["photos"] = []
         s["status"] = "lobby"
         s["current_round"] = 0
         s["total_rounds"] = 0

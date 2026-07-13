@@ -57,13 +57,13 @@ def client():
 
 
 def create_room(client, name="Host"):
-    r = client.post("/api/rooms", json={"name": name, "photos": [PHOTO], "prompt": "test prompt"})
+    r = client.post("/api/rooms", json={"name": name, "photo": PHOTO})
     assert r.status_code == 200, r.text
     return r.json()
 
 
-def join(client, code, name, photos=None):
-    return client.post(f"/api/rooms/{code}/join", json={"name": name, "photos": photos or [PHOTO]})
+def join(client, code, name, photo=PHOTO):
+    return client.post(f"/api/rooms/{code}/join", json={"name": name, "photo": photo})
 
 
 def recv_until(ws, msg_type, limit=10):
@@ -157,15 +157,15 @@ class TestReconnection:
         assert r.status_code == 200
         assert r.json()["player_id"] == joined["player_id"]
 
-    def test_lobby_rejoin_updates_photo_deck(self, client):
+    def test_lobby_rejoin_updates_photo(self, client):
         room = create_room(client)
         code = room["code"]
         joined = join(client, code, "Maya").json()
         new_photo = "data:image/png;base64,bmV3"
-        r = join(client, code, "Maya", photos=[new_photo])
+        r = join(client, code, "Maya", photo=new_photo)
         assert r.status_code == 200
         player = next(p for p in server.rooms_state[code]["players"] if p["id"] == joined["player_id"])
-        assert player["photos"] == [new_photo]
+        assert player["photo"] == new_photo
 
     def test_midgame_rejoin_allowed_new_player_rejected(self, client):
         room = create_room(client)
@@ -178,9 +178,9 @@ class TestReconnection:
         r = join(client, code, "Maya")
         assert r.status_code == 200
         assert r.json()["player_id"] == joined["player_id"]
-        # ...and mid-game her photo deck is left untouched.
+        # ...and mid-game her photo is left untouched.
         player = next(p for p in server.rooms_state[code]["players"] if p["id"] == joined["player_id"])
-        assert player["photos"] == [PHOTO]
+        assert player["photo"] == PHOTO
         # A genuinely new player still can't enter a running game.
         r = join(client, code, "Newcomer")
         assert r.status_code == 400
@@ -258,3 +258,45 @@ class TestHostMigration:
             r = client.post(f"/api/rooms/{code}/settings",
                             json={"player_id": host_id, "round_duration_s": 10})
             assert r.status_code == 403
+
+
+# ---------- 4. Single photo + hardcoded theme ----------
+
+class TestSinglePhotoAndPrompt:
+    def test_every_room_gets_the_hardcoded_prompt(self, client):
+        room = create_room(client)
+        assert room["prompt"] == "The most chaotic pic"
+        r = client.get(f"/api/rooms/{room['code']}")
+        assert r.json()["prompt"] == "The most chaotic pic"
+
+    def test_photo_is_mandatory_on_create_and_join(self, client):
+        r = client.post("/api/rooms", json={"name": "NoPic"})
+        assert r.status_code == 400
+        room = create_room(client)
+        r = client.post(f"/api/rooms/{room['code']}/join", json={"name": "NoPic"})
+        assert r.status_code == 400
+        # Legacy multi-photo payloads no longer count as a photo.
+        r = client.post(f"/api/rooms/{room['code']}/join", json={"name": "Decky", "photos": [PHOTO, PHOTO]})
+        assert r.status_code == 400
+
+    def test_question_shows_the_targets_single_photo(self, client):
+        room = create_room(client)
+        code = room["code"]
+        maya_photo = "data:image/png;base64,bWF5YQ=="
+        join(client, code, "Maya", photo=maya_photo)
+        r = client.post(f"/api/rooms/{code}/start?player_id={room['player_id']}")
+        assert r.status_code == 200
+        s = server.rooms_state[code]
+        q = s["current_question"]
+        target = next(p for p in s["players"] if p["id"] == q["target_player_id"])
+        assert q["photo"] == target["photo"]
+        assert "photos" not in target  # the deck is gone from player state
+
+    def test_update_photo_replaces_single_pic(self, client):
+        room = create_room(client)
+        code = room["code"]
+        new_photo = "data:image/png;base64,bmV3cGlj"
+        r = client.post(f"/api/rooms/{code}/photo", json={"player_id": room["player_id"], "photo": new_photo})
+        assert r.status_code == 200
+        player = server.rooms_state[code]["players"][0]
+        assert player["photo"] == new_photo
