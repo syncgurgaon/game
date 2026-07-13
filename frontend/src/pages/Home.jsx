@@ -67,7 +67,7 @@ export default function Home() {
     setSubmitting(true);
     try {
       const res = await api.post("/rooms", { name: name.trim(), photos, prompt });
-      sessionStorage.setItem(`room_${res.data.code}`, JSON.stringify(res.data));
+      localStorage.setItem(`room_${res.data.code}`, JSON.stringify(res.data));
       playSfx("join");
       navigate(`/room/${res.data.code}`);
     } catch (err) {
@@ -85,7 +85,8 @@ export default function Home() {
     try {
       // Pass the fetched prompt along if available, though backend ignores it on join
       const res = await api.post(`/rooms/${normCode}/join`, { name: name.trim(), photos });
-      sessionStorage.setItem(`room_${res.data.code}`, JSON.stringify(res.data));
+      localStorage.setItem(`room_${res.data.code}`, JSON.stringify(res.data));
+      if (res.data.reconnected) toast.success("Welcome back! Resuming your session…");
       playSfx("join");
       navigate(`/room/${res.data.code}`);
     } catch (err) {
