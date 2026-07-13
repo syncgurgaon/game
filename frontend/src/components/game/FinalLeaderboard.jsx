@@ -35,6 +35,7 @@ export default function FinalLeaderboard({ state, me, isHost }) {
   }, [state.round_history]);
 
   const goHome = () => {
+    localStorage.removeItem(`room_${state.code}`);
     sessionStorage.removeItem(`room_${state.code}`);
     navigate("/");
   };

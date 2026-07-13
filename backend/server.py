@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import json
 import logging
 import asyncio
 import random
@@ -99,25 +100,46 @@ class ConnectionManager:
 
     async def connect(self, code: str, player_id: str, ws: WebSocket):
         await ws.accept()
+        old = self.connections.get(code, {}).get(player_id)
         self.connections.setdefault(code, {})[player_id] = ws
+        # A quick reconnect can arrive while the previous socket is still open;
+        # close the stale one so it can't linger server-side.
+        if old is not None and old is not ws:
+            try:
+                await old.close(code=4001)
+            except Exception:
+                pass
 
-    def disconnect(self, code: str, player_id: str):
-        if code in self.connections and player_id in self.connections[code]:
-            del self.connections[code][player_id]
-            if not self.connections[code]:
-                del self.connections[code]
+    def disconnect(self, code: str, player_id: str, ws: Optional[WebSocket] = None) -> bool:
+        """Remove the player's socket mapping. When ws is given, only remove it
+        if it is still the registered socket — the cleanup of an old handler
+        must not clobber a newer connection for the same player. Returns True
+        if a mapping was removed."""
+        current = self.connections.get(code, {}).get(player_id)
+        if current is None or (ws is not None and current is not ws):
+            return False
+        del self.connections[code][player_id]
+        if not self.connections[code]:
+            del self.connections[code]
+        return True
+
+    def is_connected(self, code: str, player_id: str) -> bool:
+        return player_id in self.connections.get(code, {})
 
     async def broadcast(self, code: str, message: dict):
-        if code not in self.connections:
+        conns = self.connections.get(code)
+        if not conns:
             return
-        dead = []
-        for pid, ws in list(self.connections[code].items()):
-            try:
-                await ws.send_json(message)
-            except Exception:
-                dead.append(pid)
-        for pid in dead:
-            self.disconnect(code, pid)
+        # Serialize once (state payloads carry base64 photos) and send
+        # concurrently so one slow client doesn't delay everyone else.
+        payload = json.dumps(message)
+        pairs = list(conns.items())
+        results = await asyncio.gather(
+            *(ws.send_text(payload) for _, ws in pairs), return_exceptions=True
+        )
+        for (pid, ws), res in zip(pairs, results):
+            if isinstance(res, Exception):
+                self.disconnect(code, pid, ws)
 
 manager = ConnectionManager()
 
@@ -380,21 +402,47 @@ async def create_room(body: CreateRoomRequest):
 async def join_room(code: str, body: JoinRoomRequest):
     code = code.upper()
     photos = _normalize_photos(body.photo, body.photos)
-    if not body.name.strip() or not photos:
+    name = body.name.strip()
+    if not name:
         raise HTTPException(400, "Name and at least one photo required")
+    reconnect_resp = None
+    photos_updated = False
     async with rooms_lock:
         s = rooms_state.get(code)
         if not s:
             raise HTTPException(404, "Room not found")
-        if s["status"] != "lobby":
-            raise HTTPException(400, "Game already started")
-        if any(p["name"].lower() == body.name.strip().lower() for p in s["players"]):
-            raise HTTPException(400, "Name already taken in this room")
-        if len(s["players"]) >= 12:
-            raise HTTPException(400, "Room is full (max 12 players)")
-        player = Player(name=body.name.strip()[:30], photo=photos[0], photos=photos, is_host=False)
-        s["players"].append(player.model_dump())
-        prompt = s.get("prompt", "")
+        existing = next((p for p in s["players"] if p["name"].lower() == name.lower()), None)
+        if existing:
+            # A live socket means the name is genuinely taken; otherwise this is
+            # the dropped player coming back — resume their session (works
+            # mid-game too, so a refresh/crash doesn't lock them out).
+            if existing["connected"] and manager.is_connected(code, existing["id"]):
+                raise HTTPException(400, "Name already taken in this room")
+            if s["status"] == "lobby" and photos:
+                existing["photo"] = photos[0]
+                existing["photos"] = photos
+                photos_updated = True
+            reconnect_resp = {
+                "code": code,
+                "player_id": existing["id"],
+                "is_host": existing["id"] == s["host_id"],
+                "prompt": s.get("prompt", ""),
+                "reconnected": True,
+            }
+        else:
+            if s["status"] != "lobby":
+                raise HTTPException(400, "Game already started")
+            if not photos:
+                raise HTTPException(400, "Name and at least one photo required")
+            if len(s["players"]) >= 12:
+                raise HTTPException(400, "Room is full (max 12 players)")
+            player = Player(name=name[:30], photo=photos[0], photos=photos, is_host=False)
+            s["players"].append(player.model_dump())
+            prompt = s.get("prompt", "")
+    if reconnect_resp:
+        if photos_updated:
+            await manager.broadcast(code, {"type": "state", "state": public_state(code)})
+        return reconnect_resp
     await manager.broadcast(code, {"type": "state", "state": public_state(code)})
     return {"code": code, "player_id": player.id, "is_host": False, "prompt": prompt}
 
@@ -640,6 +688,34 @@ async def rematch(code: str, body: RematchRequest):
 
 # ============ WebSocket endpoint ============
 
+# Grace period before reassigning host after their socket drops, so a quick
+# refresh/reconnect doesn't bounce the host role between players.
+HOST_MIGRATION_GRACE_S = 10
+
+async def _migrate_host_if_gone(code: str, old_host_id: str):
+    await asyncio.sleep(HOST_MIGRATION_GRACE_S)
+    new_host = None
+    async with rooms_lock:
+        s = rooms_state.get(code)
+        if not s or s["host_id"] != old_host_id:
+            return
+        old = next((p for p in s["players"] if p["id"] == old_host_id), None)
+        if old and old["connected"] and manager.is_connected(code, old_host_id):
+            return  # host came back within the grace period
+        candidates = [
+            p for p in s["players"]
+            if p["id"] != old_host_id and p["connected"] and manager.is_connected(code, p["id"])
+        ]
+        if not candidates:
+            return  # nobody to hand off to; host keeps the role for when they return
+        new_host = candidates[0]
+        s["host_id"] = new_host["id"]
+        for p in s["players"]:
+            p["is_host"] = p["id"] == new_host["id"]
+        status = s["status"]
+    await manager.broadcast(code, {"type": "host_changed", "host_id": new_host["id"], "host_name": new_host["name"]})
+    await manager.broadcast(code, {"type": "state", "state": public_state(code, hide_answer=(status == "playing"))})
+
 @app.websocket("/api/ws/{code}/{player_id}")
 async def ws_endpoint(websocket: WebSocket, code: str, player_id: str):
     code = code.upper()
@@ -653,10 +729,11 @@ async def ws_endpoint(websocket: WebSocket, code: str, player_id: str):
         if p["id"] == player_id:
             p["connected"] = True
             break
-    # send initial state
     try:
+        # Full state only to the (re)connecting socket; everyone else just needs
+        # a lightweight presence update instead of a full-state broadcast.
         await websocket.send_json({"type": "state", "state": public_state(code, hide_answer=(s["status"] == "playing"))})
-        await manager.broadcast(code, {"type": "state", "state": public_state(code, hide_answer=(s["status"] == "playing"))})
+        await manager.broadcast(code, {"type": "presence", "player_id": player_id, "connected": True})
         while True:
             msg = await websocket.receive_json()
             if msg.get("type") == "ping":
@@ -666,14 +743,18 @@ async def ws_endpoint(websocket: WebSocket, code: str, player_id: str):
     except Exception as e:
         logger.error(f"WS error: {e}")
     finally:
-        manager.disconnect(code, player_id)
+        # If a newer socket for this player already took over (fast reconnect),
+        # leave the fresh connection's state alone.
+        was_current = manager.disconnect(code, player_id, websocket)
         s = rooms_state.get(code)
-        if s:
+        if s and was_current:
             for p in s["players"]:
                 if p["id"] == player_id:
                     p["connected"] = False
                     break
-            await manager.broadcast(code, {"type": "state", "state": public_state(code, hide_answer=(s["status"] == "playing"))})
+            await manager.broadcast(code, {"type": "presence", "player_id": player_id, "connected": False})
+            if s["host_id"] == player_id:
+                asyncio.create_task(_migrate_host_if_gone(code, player_id))
 
 
 app.include_router(api_router)
